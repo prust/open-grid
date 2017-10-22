@@ -15,7 +15,7 @@ canvas.setAttribute('height', window.innerHeight || document.body.clientHeight);
 var grid_width = 100;
 var grid_height = 100;
 var grid = [];
-var block_size = 50;
+var block_size = 40;
 
 // initialize grid with 0 objects
 for (var x = 0; x < grid_width; x++) {
@@ -26,7 +26,10 @@ for (var x = 0; x < grid_width; x++) {
 
 canvas.addEventListener('mouseup', function(evt) {
   var pos = posFromEvt(evt);
-  grid[pos.x][pos.y] = 1;
+  if (!grid[pos.x][pos.y])
+    grid[pos.x][pos.y] = 1;
+  else
+    grid[pos.x][pos.y] = 0;
 });
 
 function posFromEvt(evt) {
@@ -51,6 +54,27 @@ function draw() {
     }
   }
   requestAnimationFrame(draw);
+}
+
+// load & save
+document.addEventListener('keypress', function(evt) {
+  if (evt.keyCode == 's'.charCodeAt(0))
+    save();
+  else if (evt.keyCode == 'l'.charCodeAt(0))
+    load();
+});
+
+function save() {
+  var name = prompt('What would you like to name this level?');
+  localStorage.setItem(name, JSON.stringify({grid: grid}));
+}
+
+function load() {
+  var name = prompt('What level would you like to load?');
+  var json = localStorage.getItem(name);
+  if (!json)
+    return alert('Sorry, no level with that name exists.');
+  grid = JSON.parse(json).grid;
 }
 
 </script>
