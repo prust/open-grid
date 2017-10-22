@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+</head>
+<body>
+<canvas id="canvas">
+</canvas>
+<script>
+document.body.style.overflow = 'hidden';
+var canvas = document.getElementById('canvas');
+var ctx = canvas.getContext('2d');
+canvas.setAttribute('width', window.innerWidth || document.body.clientWidth);
+canvas.setAttribute('height', window.innerHeight || document.body.clientHeight);
+
+var grid_width = 100;
+var grid_height = 100;
+var grid = [];
+var block_size = 50;
+
+// initialize grid with 0 objects
+for (var x = 0; x < grid_width; x++) {
+  grid[x] = [];
+  for (var y = 0; y < grid_height; y++)
+    grid[x][y] = 0;
+}
+
+canvas.addEventListener('mouseup', function(evt) {
+  var pos = posFromEvt(evt);
+  grid[pos.x][pos.y] = 1;
+});
+
+function posFromEvt(evt) {
+  var pos = {x: evt.pageX, y: evt.pageY};
+  return toBlockCoords(pos);
+}
+
+function toBlockCoords(pos) {
+  return {x: Math.floor(pos.x / block_size), y: Math.floor(pos.y / block_size)};
+}
+
+requestAnimationFrame(draw);
+function draw() {
+  ctx.clearRect(0, 0, grid_width * block_size, grid_height * block_size);
+  for (var x = 0; x < grid_width; x++) {
+    for (var y = 0; y < grid_height; y++) {
+      if (grid[x][y] == 0)
+        ctx.fillStyle="#FFFFFF";
+      else
+        ctx.fillStyle = '#666666';
+      ctx.fillRect(x * block_size, y * block_size, x * block_size + block_size, y * block_size + block_size);
+    }
+  }
+  requestAnimationFrame(draw);
+}
+
+</script>
+</body>
+</html>
