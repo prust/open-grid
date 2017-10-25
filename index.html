@@ -48,6 +48,7 @@ textarea {
     <li>setGravity(x, y)</li>
     <li>setSpeed(x, y)</li>
   </ul>
+  <input type="checkbox" id="is-solid"> Solid<br>
 <textarea id="code"></textarea>
 </div>
 <div id="header">
@@ -66,6 +67,7 @@ var grid_width = 100;
 var grid_height = 100;
 var grid = [];
 var code = [];
+var solid = [];
 var block_size = 40;
 var selected_block = null;
 var current_color_ix = 1;
@@ -89,6 +91,7 @@ var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 1};
 for (var x = 0; x < grid_width; x++) {
   grid[x] = [];
   code[x] = [];
+  solid[x] = [];
 
   for (var y = 0; y < grid_height; y++)
     grid[x][y] = 0;
@@ -97,7 +100,7 @@ for (var x = 0; x < grid_width; x++) {
 canvas.addEventListener('mouseup', function(evt) {
   var pos = posFromEvt(evt);
   if (!grid[pos.x][pos.y])
-    grid[pos.x][pos.y] = current_color_ix;
+    createBlock(pos.x, pos.y);
   else
     selectBlock(pos.x, pos.y);
 });
@@ -107,12 +110,18 @@ function setColor(color_ix) {
   document.getElementById('cur_color').style.backgroundColor = colors[color_ix];
 }
 
-function selectBlock(x, y) {
-  selected_block = {x: x, y: y};
-  updateCode(x, y);
+function createBlock(x, y) {
+  grid[x][y] = current_color_ix;
+  solid[x][y] = true;
 }
 
-function updateCode(x, y) {
+function selectBlock(x, y) {
+  selected_block = {x: x, y: y};
+  updateProperties(x, y);
+}
+
+function updateProperties(x, y) {
+  document.getElementById('is-solid').checked = solid[x][y];
   document.getElementById('code').value = code[x][y] || '';
 }
 
@@ -198,32 +207,34 @@ function update() {
         );
 
         if (intersection) {
-          var x_overlap = intersection.x2 - intersection.x1;
-          var y_overlap = intersection.y2 - intersection.y1;
-          if (x_overlap < y_overlap) {
-            // back out the x overlap
-            var player_on_left = player.x < x * block_size;
-            if (player_on_left)
-              player.x -= x_overlap;
-            else
-              player.x += x_overlap;
-            player.vel_x = 0;
-          }
-          else {
-            // back out the y overlap
-            var player_above = player.y < y * block_size;
-            if (player_above)
-              player.y -= y_overlap;
-            else
-              player.y += y_overlap;
+          if (solid[x][y]) {
+            var x_overlap = intersection.x2 - intersection.x1;
+            var y_overlap = intersection.y2 - intersection.y1;
+            if (x_overlap < y_overlap) {
+              // back out the x overlap
+              var player_on_left = player.x < x * block_size;
+              if (player_on_left)
+                player.x -= x_overlap;
+              else
+                player.x += x_overlap;
+              player.vel_x = 0;
+            }
+            else {
+              // back out the y overlap
+              var player_above = player.y < y * block_size;
+              if (player_above)
+                player.y -= y_overlap;
+              else
+                player.y += y_overlap;
 
-            // drop the y velocity to zero on a vertical collision
-            // w/out this, the constant collisions caused by gravity
-            // cause some side-effects
-            // but sometimes it's not perfect, like when hitting a corner
-            // dropping the `vel_x` to zero makes the sideways velocity drop to zero sometimes
-            // when dropping to the ground
-            player.vel_y = 0;
+              // drop the y velocity to zero on a vertical collision
+              // w/out this, the constant collisions caused by gravity
+              // cause some side-effects
+              // but sometimes it's not perfect, like when hitting a corner
+              // dropping the `vel_x` to zero makes the sideways velocity drop to zero sometimes
+              // when dropping to the ground
+              player.vel_y = 0;
+            }
           }
           onCollide(x, y);
         }
@@ -245,7 +256,7 @@ function onCollide(x, y) {
 
       code[x][y] = lines.join('\n');
       if (selected_block && selected_block.x == x && selected_block.y == y)
-        updateCode(x, y);
+        updateProperties(x, y);
     }
   }
 }
@@ -303,6 +314,12 @@ document.addEventListener('keypress', function(evt) {
 document.addEventListener('focusout', function(evt) {
   if (evt.target.getAttribute('id') == 'code' && selected_block)
     code[selected_block.x][selected_block.y] = evt.target.value;
+});
+
+document.getElementById('is-solid').addEventListener('change', function(evt) {
+  if (selected_block) {
+    solid[selected_block.x][selected_block.y] = !!evt.target.checked;
+  }
 });
 
 var LEFT = 37;
