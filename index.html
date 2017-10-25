@@ -64,7 +64,7 @@ var ctx = canvas.getContext('2d');
 canvas.setAttribute('width', window.innerWidth || document.body.clientWidth);
 canvas.setAttribute('height', window.innerHeight || document.body.clientHeight);
 
-var MAX_VEL = 20;
+var MAX_VEL = 100;
 
 var grid_width = 100;
 var grid_height = 100;
@@ -373,13 +373,13 @@ function load() {
 
 function jump() {
   if (player.accel_y > 0)
-    player.vel_y = -MAX_VEL;
+    player.vel_y = -20;
   else if (player.accel_y < 0)
-    player.vel_y = MAX_VEL;
+    player.vel_y = 20;
   if (player.accel_x > 0)
-    player.vel_x = -MAX_VEL;
+    player.vel_x = -20;
   else if (player.accel_x < 0)
-    player.vel_x = MAX_VEL;
+    player.vel_x = 20;
 }
 
 // public API functions (available to the game designer)
