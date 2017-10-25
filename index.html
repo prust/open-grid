@@ -35,7 +35,7 @@ ul {
 }
 textarea {
   width: 390px;
-  height: 150px;
+  height: 80px;
 }
 </style>
 </head>
@@ -48,6 +48,8 @@ textarea {
     <li>setGravity(x, y)</li>
     <li>setSpeed(x, y)</li>
     <li>setPosition(x, y)</li>
+    <li>setStart(x, y)</li>
+    <li>restart()</li>
   </ul>
   <input type="checkbox" id="is-solid"> Solid<br>
 <textarea id="code"></textarea>
@@ -72,6 +74,8 @@ var solid = [];
 var block_size = 40;
 var selected_block = null;
 var current_color_ix = 1;
+var start_x = 0;
+var start_y = 0;
 colors = [
   null, // at present 1-9 are the colors, 0 means no-block & isn't a color
   '#5e6660',
@@ -163,7 +167,7 @@ function draw() {
   ctx.beginPath();
   var radius = block_size / 2;
   ctx.arc(Math.floor(player.x) + radius, Math.floor(player.y) + radius, radius, 0, 2 * Math.PI, false);
-  ctx.fillStyle = '#000099';
+  ctx.fillStyle = '#5b99f4';
   ctx.fill();
   requestAnimationFrame(draw);
 }
@@ -348,7 +352,7 @@ document.addEventListener('keydown', function(evt) {
 
 function save() {
   var name = prompt('What would you like to name this level?');
-  localStorage.setItem(name, JSON.stringify({grid: grid, code: code}));
+  localStorage.setItem(name, JSON.stringify({grid: grid, code: code, solid: solid}));
 }
 
 function load() {
@@ -359,6 +363,7 @@ function load() {
   var parsed = JSON.parse(json);
   grid = parsed.grid;
   code = parsed.code;
+  solid = parsed.solid;
 
   player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 1};
 }
@@ -394,6 +399,18 @@ function setPosition(x, y) {
     player.x = x * block_size;
   if (y != null)
     player.y = y * block_size;
+}
+
+function setStart(x, y) {
+  if (x != null)
+    start_x = x * block_size;
+  if (y != null)
+    start_y = y * block_size;
+}
+
+function restart() {
+  player.x = start_x;
+  player.y = start_y;
 }
 
 </script>

@@ -11,6 +11,5 @@ Features:
 - [x] Ability to change block colors (via keys 1-9)
 - [x] Ability to set blocks as non-solid (pass-through)
 - [x] Portals (via `setPosition(x, y)`)
-- [ ] Spikes
-- [ ] Checkpoints
-- [ ] Allow (same-machine) multi-player
+- [x] Spikes (via `restart()`)
+- [x] Checkpoints (via `setStart(x, y)`)
