@@ -101,7 +101,7 @@ canvas.addEventListener('mouseup', function(evt) {
   }
 
   if (obj_under_mouse)
-    selected_block = obj_under_mouse;
+    selectBlock(obj_under_mouse);
   else
     createBlock(evt.pageX, evt.pageY);
 });
@@ -315,9 +315,12 @@ document.addEventListener('keypress', function(evt) {
     setColor(9);
 });
 
-document.addEventListener('focusout', function(evt) {
-  if (evt.target.getAttribute('id') == 'code' && selected_block)
-    selected_block.code = evt.target.value;
+document.getElementById('code').addEventListener('keypress', function(evt) {
+  var block = selected_block;
+  setTimeout(function() {
+    if (block)
+      block.code = evt.target.value;
+  }, 0);
 });
 
 document.getElementById('is-solid').addEventListener('change', function(evt) {
