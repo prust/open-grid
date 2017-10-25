@@ -68,9 +68,7 @@ var MAX_VEL = 20;
 
 var grid_width = 100;
 var grid_height = 100;
-var grid = [];
-var code = [];
-var solid = [];
+var objects = [];
 var block_size = 40;
 var selected_block = null;
 var current_color_ix = 1;
@@ -92,54 +90,52 @@ setColor(1);
 
 var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 1};
 
-// initialize grid with 0 objects
-for (var x = 0; x < grid_width; x++) {
-  grid[x] = [];
-  code[x] = [];
-  solid[x] = [];
-
-  for (var y = 0; y < grid_height; y++)
-    grid[x][y] = 0;
-}
-
 canvas.addEventListener('mouseup', function(evt) {
-  var pos = posFromEvt(evt);
-  if (!grid[pos.x][pos.y])
-    createBlock(pos.x, pos.y);
+  var pt = {x: evt.pageX, y: evt.pageY};
+  var obj_under_mouse;
+  for (var i = 0; i < objects.length; i++) {
+    var obj = objects[i];
+    if (intersectsPoint(obj, pt))
+      obj_under_mouse = obj;
+  }
+
+  if (obj_under_mouse)
+    selected_block = obj_under_mouse;
   else
-    selectBlock(pos.x, pos.y);
+    createBlock(evt.pageX, evt.pageY);
 });
 
 function setColor(color_ix) {
   current_color_ix = color_ix;
   document.getElementById('cur_color').style.backgroundColor = colors[color_ix];
   if (selected_block)
-    grid[selected_block.x][selected_block.y] = current_color_ix;
+    selected_block.type = current_color_ix;
 }
 
 function createBlock(x, y) {
-  grid[x][y] = current_color_ix;
-  solid[x][y] = true;
-  selectBlock(x, y);
+  x = Math.floor(x / block_size) * block_size;
+  y = Math.floor(y / block_size) * block_size;
+  var obj = {
+    x: x,
+    y: y,
+    w: block_size,
+    h: block_size,
+    type: current_color_ix,
+    is_solid: true
+  };
+
+  objects.push(obj);
+  selectBlock(obj);
 }
 
-function selectBlock(x, y) {
-  selected_block = {x: x, y: y};
-  updateProperties(x, y);
+function selectBlock(obj) {
+  selected_block = obj;
+  updateProperties(obj);
 }
 
-function updateProperties(x, y) {
-  document.getElementById('is-solid').checked = solid[x][y];
-  document.getElementById('code').value = code[x][y] || '';
-}
-
-function posFromEvt(evt) {
-  var pos = {x: evt.pageX, y: evt.pageY};
-  return toBlockCoords(pos);
-}
-
-function toBlockCoords(pos) {
-  return {x: Math.floor(pos.x / block_size), y: Math.floor(pos.y / block_size)};
+function updateProperties(obj) {
+  document.getElementById('is-solid').checked = obj.is_solid;
+  document.getElementById('code').value = obj.code || '';
 }
 
 requestAnimationFrame(draw);
@@ -149,21 +145,17 @@ function draw() {
   update();
 
   // draw blocks on the grid
-  for (var x = 0; x < grid_width; x++) {
-    for (var y = 0; y < grid_height; y++) {
-      if (grid[x][y]) {
-        ctx.fillStyle = colors[grid[x][y]];
-
-        ctx.fillRect(x * block_size, y * block_size, block_size, block_size);
-      }
-    }
+  for (var i = 0; i < objects.length; i++) {
+    var obj = objects[i];
+    ctx.fillStyle = colors[obj.type];
+    ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
   }
 
   // draw selection
   if (selected_block) {
     ctx.strokeStyle = '#6666FF';
     ctx.lineWidth=5;
-    ctx.strokeRect(selected_block.x * block_size, selected_block.y * block_size, block_size, block_size);
+    ctx.strokeRect(selected_block.x, selected_block.y, selected_block.w, selected_block.h);
   }
 
   // draw player
@@ -206,67 +198,68 @@ function update() {
   player.y = player.y + player.vel_y;
 
   // super-simple AABB collision detection & "slide" resolution
-  for (var x = 0; x < grid_width; x++) {
-    for (var y = 0; y < grid_height; y++) {
-      if (grid[x][y]) {
-        var intersection = getIntersection(
-          {x1: player.x, x2: player.x + block_size, y1: player.y, y2: player.y + block_size},
-          {x1: x * block_size, x2: (x + 1) * block_size, y1: y * block_size, y2: (y + 1) * block_size}
-        );
+  for (var i = 0; i < objects.length; i++) {
+    var obj = objects[i];
+    var intersection = getIntersection(
+      {x1: player.x, x2: player.x + block_size, y1: player.y, y2: player.y + block_size},
+      {x1: obj.x, x2: obj.x + obj.w, y1: obj.y, y2: obj.y + obj.h}
+    );
+    if (intersection) {
+      if (obj.is_solid) {
+        var x_overlap = intersection.x2 - intersection.x1;
+        var y_overlap = intersection.y2 - intersection.y1;
+        if (x_overlap < y_overlap) {
+          // back out the x overlap
+          var player_on_left = player.x < obj.x;
+          if (player_on_left)
+            player.x -= x_overlap;
+          else
+            player.x += x_overlap;
+          player.vel_x = 0;
+        }
+        else {
+          // back out the y overlap
+          var player_above = player.y < obj.y;
+          if (player_above)
+            player.y -= y_overlap;
+          else
+            player.y += y_overlap;
 
-        if (intersection) {
-          if (solid[x][y]) {
-            var x_overlap = intersection.x2 - intersection.x1;
-            var y_overlap = intersection.y2 - intersection.y1;
-            if (x_overlap < y_overlap) {
-              // back out the x overlap
-              var player_on_left = player.x < x * block_size;
-              if (player_on_left)
-                player.x -= x_overlap;
-              else
-                player.x += x_overlap;
-              player.vel_x = 0;
-            }
-            else {
-              // back out the y overlap
-              var player_above = player.y < y * block_size;
-              if (player_above)
-                player.y -= y_overlap;
-              else
-                player.y += y_overlap;
-
-              // drop the y velocity to zero on a vertical collision
-              // w/out this, the constant collisions caused by gravity
-              // cause some side-effects
-              // but sometimes it's not perfect, like when hitting a corner
-              // dropping the `vel_x` to zero makes the sideways velocity drop to zero sometimes
-              // when dropping to the ground
-              player.vel_y = 0;
-            }
-          }
-          onCollide(x, y);
+          // drop the y velocity to zero on a vertical collision
+          // w/out this, the constant collisions caused by gravity
+          // cause some side-effects
+          // but sometimes it's not perfect, like when hitting a corner
+          // dropping the `vel_x` to zero makes the sideways velocity drop to zero sometimes
+          // when dropping to the ground
+          player.vel_y = 0;
         }
       }
+      onCollide(obj);
     }
   }
 }
 
-function onCollide(x, y) {
-  if (code[x][y]) {
+function onCollide(obj) {
+  if (obj.code) {
     try {
-      eval(code[x][y]);
+      eval(obj.code);
     }
     catch(err) {
       alert(err.message);
-      var lines = code[x][y].split('\n');
+      var lines = obj.code.split('\n');
       for (var i = 0; i < lines.length; i++)
         lines[i] = '// ' + lines[i];
 
-      code[x][y] = lines.join('\n');
-      if (selected_block && selected_block.x == x && selected_block.y == y)
-        updateProperties(x, y);
+      obj.code = lines.join('\n');
+      if (selected_block && selected_block == obj)
+        updateProperties(obj);
     }
   }
+}
+
+function intersectsPoint(rect, pt) {
+  return rect.x < pt.x && rect.x + rect.w > pt.x &&
+    rect.y < pt.y && rect.y + rect.h > pt.y;
 }
 
 function getIntersection(rect1, rect2) {
@@ -323,13 +316,12 @@ document.addEventListener('keypress', function(evt) {
 
 document.addEventListener('focusout', function(evt) {
   if (evt.target.getAttribute('id') == 'code' && selected_block)
-    code[selected_block.x][selected_block.y] = evt.target.value;
+    selected_block.code = evt.target.value;
 });
 
 document.getElementById('is-solid').addEventListener('change', function(evt) {
-  if (selected_block) {
-    solid[selected_block.x][selected_block.y] = !!evt.target.checked;
-  }
+  if (selected_block)
+    selected_block.is_solid = !!evt.target.checked;
 });
 
 var LEFT = 37;
@@ -351,7 +343,9 @@ document.addEventListener('keydown', function(evt) {
   else if (evt.keyCode == DOWN && player.accel_x != 0)
     player.vel_y = 5;
   else if (evt.keyCode == DEL && selected_block) {
-    grid[selected_block.x][selected_block.y] = 0;
+    var ix = objects.indexOf(selected_block);
+    if (ix > -1)
+      objects.splice(ix, 1);
     selected_block = null;
   }
   else if (evt.keyCode == ESC) {
@@ -362,7 +356,7 @@ document.addEventListener('keydown', function(evt) {
 
 function save() {
   var name = prompt('What would you like to name this level?');
-  localStorage.setItem(name, JSON.stringify({grid: grid, code: code, solid: solid}));
+  localStorage.setItem(name, JSON.stringify({objects: objects}));
 }
 
 function load() {
@@ -371,9 +365,7 @@ function load() {
   if (!json)
     return alert('Sorry, no level with that name exists.');
   var parsed = JSON.parse(json);
-  grid = parsed.grid;
-  code = parsed.code;
-  solid = parsed.solid;
+  objects = parsed.objects;
 
   player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 1};
 }
@@ -421,6 +413,10 @@ function setStart(x, y) {
 function restart() {
   player.x = start_x;
   player.y = start_y;
+  player.vel_y = 0;
+  player.vel_x = 0;
+  player.accel_x = 0;
+  player.accel_y = 1;
 }
 
 </script>
