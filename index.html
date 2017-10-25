@@ -47,6 +47,7 @@ textarea {
   <ul>
     <li>setGravity(x, y)</li>
     <li>setSpeed(x, y)</li>
+    <li>setPosition(x, y)</li>
   </ul>
   <input type="checkbox" id="is-solid"> Solid<br>
 <textarea id="code"></textarea>
@@ -386,6 +387,13 @@ function setSpeed(x, y) {
     player.vel_x = x;
   if (y != null)
     player.vel_y = y;
+}
+
+function setPosition(x, y) {
+  if (x != null)
+    player.x = x * block_size;
+  if (y != null)
+    player.y = y * block_size;
 }
 
 </script>
