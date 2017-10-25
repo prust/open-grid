@@ -121,6 +121,7 @@ function update() {
               player.x -= x_overlap;
             else
               player.x += x_overlap;
+            // player.vel_x = 0;
           }
           else {
             // back out the y overlap
@@ -129,6 +130,14 @@ function update() {
               player.y -= y_overlap;
             else
               player.y += y_overlap;
+
+            // drop the y velocity to zero on a vertical collision
+            // w/out this, the constant collisions caused by gravity
+            // cause some side-effects
+            // but sometimes it's not perfect, like when hitting a corner
+            // dropping the `vel_x` to zero makes the sideways velocity drop to zero sometimes
+            // when dropping to the ground
+            player.vel_y = 0;
           }
         }
       }
