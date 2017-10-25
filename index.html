@@ -89,6 +89,7 @@ colors = [
 setColor(1);
 
 var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 1};
+createBlock(0, 8 * block_size);
 
 canvas.addEventListener('mouseup', function(evt) {
   var pt = {x: evt.pageX, y: evt.pageY};
@@ -367,7 +368,7 @@ function load() {
   var parsed = JSON.parse(json);
   objects = parsed.objects;
 
-  player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 1};
+  restart();
 }
 
 function jump() {
