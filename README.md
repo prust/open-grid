@@ -6,7 +6,7 @@ Features:
 - [x] Easy level creation
 - [x] Basic platformer dynamics
 - [x] Ability to select blocks
-- [ ] Gravity-changing blocks
+- [x] Gravity-changing blocks
 - [ ] Portals
 - [ ] Spikes
 - [ ] Checkpoints

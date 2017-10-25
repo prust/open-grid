@@ -3,11 +3,34 @@
 <head>
 <style>
 body { margin: 0; padding: 0; }
+#properties {
+  position: absolute;
+  z-index: 100;
+  right: 0;
+  bottom: 0;
+  width: 400px;
+  height: 200px;
+  background-color: #eee;
+  color: #666;
+  padding: 5px;
+}
+ul {
+  margin: 0;
+}
+textarea {
+  width: 390px;
+  height: 150px;
+}
 </style>
 </head>
 <body>
 <canvas id="canvas">
 </canvas>
+<div id="properties">
+  API:
+  <ul><li>setGravity(x, y)</li></ul>
+<textarea id="code"></textarea>
+</div>
 <script>
 document.body.style.overflow = 'hidden';
 var canvas = document.getElementById('canvas');
@@ -20,6 +43,7 @@ var MAX_VEL = 20;
 var grid_width = 100;
 var grid_height = 100;
 var grid = [];
+var code = [];
 var block_size = 40;
 var selected_block = null;
 
@@ -28,6 +52,8 @@ var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 1};
 // initialize grid with 0 objects
 for (var x = 0; x < grid_width; x++) {
   grid[x] = [];
+  code[x] = [];
+
   for (var y = 0; y < grid_height; y++)
     grid[x][y] = 0;
 }
@@ -37,8 +63,17 @@ canvas.addEventListener('mouseup', function(evt) {
   if (!grid[pos.x][pos.y])
     grid[pos.x][pos.y] = 1;
   else
-    selected_block = {x: pos.x, y: pos.y};
+    selectBlock(pos.x, pos.y);
 });
+
+function selectBlock(x, y) {
+  selected_block = {x: x, y: y};
+  updateCode(x, y);
+}
+
+function updateCode(x, y) {
+  document.getElementById('code').value = code[x][y] || '';
+}
 
 function posFromEvt(evt) {
   var pos = {x: evt.pageX, y: evt.pageY};
@@ -131,7 +166,7 @@ function update() {
               player.x -= x_overlap;
             else
               player.x += x_overlap;
-            // player.vel_x = 0;
+            player.vel_x = 0;
           }
           else {
             // back out the y overlap
@@ -149,8 +184,27 @@ function update() {
             // when dropping to the ground
             player.vel_y = 0;
           }
+          onCollide(x, y);
         }
       }
+    }
+  }
+}
+
+function onCollide(x, y) {
+  if (code[x][y]) {
+    try {
+      eval(code[x][y]);
+    }
+    catch(err) {
+      alert(err.message);
+      var lines = code[x][y].split('\n');
+      for (var i = 0; i < lines.length; i++)
+        lines[i] = '// ' + lines[i];
+
+      code[x][y] = lines.join('\n');
+      if (selected_block && selected_block.x == x && selected_block.y == y)
+        updateCode(x, y);
     }
   }
 }
@@ -176,6 +230,9 @@ function getIntersection(rect1, rect2) {
 
 // load & save
 document.addEventListener('keypress', function(evt) {
+  if (document.activeElement && document.activeElement == document.getElementById('code'))
+    return;
+  
   if (evt.keyCode == 's'.charCodeAt(0))
     save();
   else if (evt.keyCode == 'l'.charCodeAt(0))
@@ -184,19 +241,27 @@ document.addEventListener('keypress', function(evt) {
     jump();
 });
 
+document.addEventListener('focusout', function(evt) {
+  if (evt.target.getAttribute('id') == 'code' && selected_block)
+    code[selected_block.x][selected_block.y] = evt.target.value;
+});
+
 var LEFT = 37;
 var UP = 38;
 var RIGHT = 39;
 var DOWN = 40;
 var DEL = 8;
 document.addEventListener('keydown', function(evt) {
-  if (evt.keyCode == LEFT)
-    player.vel_x = -5;
-  else if (evt.keyCode == RIGHT)
-    player.vel_x = 5;
-  else if (evt.keyCode == UP)
+  if (document.activeElement && document.activeElement == document.getElementById('code'))
+    return;
+
+  if (evt.keyCode == LEFT && player.accel_y != 0)
+      player.vel_x = -5;
+  else if (evt.keyCode == RIGHT && player.accel_y != 0)
+      player.vel_x = 5;
+  else if (evt.keyCode == UP && player.accel_x != 0)
     player.vel_y = -5;
-  else if (evt.keyCode == DOWN)
+  else if (evt.keyCode == DOWN && player.accel_x != 0)
     player.vel_y = 5;
   else if (evt.keyCode == DEL && selected_block) {
     grid[selected_block.x][selected_block.y] = 0;
@@ -206,7 +271,7 @@ document.addEventListener('keydown', function(evt) {
 
 function save() {
   var name = prompt('What would you like to name this level?');
-  localStorage.setItem(name, JSON.stringify({grid: grid}));
+  localStorage.setItem(name, JSON.stringify({grid: grid, code: code}));
 }
 
 function load() {
@@ -214,13 +279,28 @@ function load() {
   var json = localStorage.getItem(name);
   if (!json)
     return alert('Sorry, no level with that name exists.');
-  grid = JSON.parse(json).grid;
+  var parsed = JSON.parse(json);
+  grid = parsed.grid;
+  code = parsed.code;
 
   player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 1};
 }
 
 function jump() {
-  player.vel_y = -MAX_VEL;
+  if (player.accel_y > 0)
+    player.vel_y = -MAX_VEL;
+  else if (player.accel_y < 0)
+    player.vel_y = MAX_VEL;
+  if (player.accel_x > 0)
+    player.vel_x = -MAX_VEL;
+  else if (player.accel_x < 0)
+    player.vel_x = MAX_VEL;
+}
+
+// public API functions (available to the game designer)
+function setGravity(x, y) {
+  player.accel_x = x;
+  player.accel_y = y;
 }
 
 </script>
