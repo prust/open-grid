@@ -113,11 +113,14 @@ canvas.addEventListener('mouseup', function(evt) {
 function setColor(color_ix) {
   current_color_ix = color_ix;
   document.getElementById('cur_color').style.backgroundColor = colors[color_ix];
+  if (selected_block)
+    grid[selected_block.x][selected_block.y] = current_color_ix;
 }
 
 function createBlock(x, y) {
   grid[x][y] = current_color_ix;
   solid[x][y] = true;
+  selectBlock(x, y);
 }
 
 function selectBlock(x, y) {
@@ -296,6 +299,8 @@ document.addEventListener('keypress', function(evt) {
     load();
   else if (evt.keyCode == ' '.charCodeAt(0))
     jump();
+  else if (evt.keyCode == 'r'.charCodeAt(0))
+    restart();
   else if (evt.keyCode == '1'.charCodeAt(0))
     setColor(1);
   else if (evt.keyCode == '2'.charCodeAt(0))
@@ -332,6 +337,7 @@ var UP = 38;
 var RIGHT = 39;
 var DOWN = 40;
 var DEL = 8;
+var ESC = 27;
 document.addEventListener('keydown', function(evt) {
   if (document.activeElement && document.activeElement == document.getElementById('code'))
     return;
@@ -347,6 +353,10 @@ document.addEventListener('keydown', function(evt) {
   else if (evt.keyCode == DEL && selected_block) {
     grid[selected_block.x][selected_block.y] = 0;
     selected_block = null;
+  }
+  else if (evt.keyCode == ESC) {
+    if (selected_block)
+      selected_block = null;
   }
 });
 
