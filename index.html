@@ -28,7 +28,10 @@ textarea {
 </canvas>
 <div id="properties">
   API:
-  <ul><li>setGravity(x, y)</li></ul>
+  <ul>
+    <li>setGravity(x, y)</li>
+    <li>setSpeed(x, y)</li>
+  </ul>
 <textarea id="code"></textarea>
 </div>
 <script>
@@ -299,8 +302,17 @@ function jump() {
 
 // public API functions (available to the game designer)
 function setGravity(x, y) {
-  player.accel_x = x;
+  if (x != null)
+    player.accel_x = x;
+  if (y != null)
   player.accel_y = y;
+}
+
+function setSpeed(x, y) {
+  if (x != null)
+    player.vel_x = x;
+  if (y != null)
+    player.vel_y = y;
 }
 
 </script>
