@@ -13,4 +13,4 @@ Features:
 - [x] Spikes (`restart()`)
 - [x] Checkpoints (`setStart(x, y)`)
 - [x] Click selected block to deselect
-- [ ] Ability to move between levels (`loadLevel(level_name)`)
+- [x] Ability to move between levels (`loadLevel(level_name)`)

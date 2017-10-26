@@ -30,6 +30,9 @@ body { margin: 0; padding: 0; }
   color: #666;
   padding: 5px;
 }
+#properties td {
+  vertical-align: top
+}
 ul {
   margin: 0;
 }
@@ -44,13 +47,19 @@ textarea {
 </canvas>
 <div id="properties">
   API:
-  <ul>
-    <li>setGravity(x, y)</li>
-    <li>setSpeed(x, y)</li>
-    <li>setPosition(x, y)</li>
-    <li>setStart(x, y)</li>
-    <li>restart()</li>
-  </ul>
+  <table><tr><td>
+    <ul>
+      <li>setGravity(x, y)</li>
+      <li>setSpeed(x, y)</li>
+      <li>setPosition(x, y)</li>
+      <li>setStart(x, y)</li>
+    </ul>
+  </td><td>
+    <ul>
+      <li>restart()</li>
+      <li>loadLevel(level_name)</li>
+    </ul>
+  </td></tr></table>
   <input type="checkbox" id="is-solid"> Solid<br>
 <textarea id="code"></textarea>
 </div>
@@ -370,13 +379,7 @@ function save() {
 
 function load() {
   var name = prompt('What level would you like to load?');
-  var json = localStorage.getItem(name);
-  if (!json)
-    return alert('Sorry, no level with that name exists.');
-  var parsed = JSON.parse(json);
-  objects = parsed.objects;
-
-  restart();
+  loadLevel(name);
 }
 
 function jump() {
@@ -426,6 +429,15 @@ function restart() {
   player.vel_x = 0;
   player.accel_x = 0;
   player.accel_y = 1;
+}
+
+function loadLevel(level_name) {
+  var json = localStorage.getItem(level_name);
+  if (!json)
+    return alert('Sorry, no level with the name "' + level_name + '" exists.');
+  var parsed = JSON.parse(json);
+  objects = parsed.objects;
+  restart();
 }
 
 </script>
