@@ -14,4 +14,4 @@ Features:
 - [x] Checkpoints (`setStart(x, y)`)
 - [x] Click selected block to deselect
 - [x] Ability to move between levels (`loadLevel(level_name)`)
-- [x] Image Editor (TODO: load/save image data)
+- [x] Image Editor
