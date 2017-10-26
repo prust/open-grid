@@ -432,7 +432,20 @@ function edit(img_ix) {
 
 function save() {
   var name = prompt('What would you like to name this level?');
-  localStorage.setItem(name, JSON.stringify({objects: objects}));
+  var data = {objects: objects, images: []};
+  
+  // serialize image pixel data
+  for (var i = 0; i < imgs.length; i++) {
+    if (imgs[i]) {
+      data.images[i] = [];
+      for (var j = 0; j < imgs[i].data.length; j++)
+        data.images[i][j] = imgs[i].data[j];
+    }
+    else {
+      data.images[i] = null;
+    }
+  }
+  localStorage.setItem(name, JSON.stringify(data));
 }
 
 function load() {
@@ -615,6 +628,18 @@ function loadLevel(level_name) {
     return alert('Sorry, no level with the name "' + level_name + '" exists.');
   var parsed = JSON.parse(json);
   objects = parsed.objects;
+  var images = parsed.images || [];
+  for (var i = 0; i < 10; i++) {
+    if (images[i]) {
+      imgs[i] = ctx.createImageData(block_size, block_size);
+      for (var j = 0; j < images[i].length; j++)
+        imgs[i].data[j] = images[i][j];
+    }
+    else {
+      imgs[i] = null;
+    }
+  }
+
   restart();
 }
 
