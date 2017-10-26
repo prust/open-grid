@@ -75,7 +75,9 @@ canvas.setAttribute('height', window.innerHeight || document.body.clientHeight);
 
 function GameEditor(ctx) {
   this.onMouseUp = this.onMouseUp.bind(this);
+  this.onKeyPress = this.onKeyPress.bind(this);
   canvas.addEventListener('mouseup', this.onMouseUp);
+  document.addEventListener('keypress', this.onKeyPress);
 }
 
 GameEditor.prototype.onMouseUp = function(evt) {
@@ -89,7 +91,7 @@ GameEditor.prototype.onMouseUp = function(evt) {
 
   if (obj_under_mouse) {
     if (obj_under_mouse == selected_block)
-      selected_block = null;
+      deselectBlock();
     else
       selectBlock(obj_under_mouse);
   }
@@ -98,8 +100,42 @@ GameEditor.prototype.onMouseUp = function(evt) {
   }
 };
 
+// load & save
+GameEditor.prototype.onKeyPress = function(evt) {
+  if (document.activeElement && document.activeElement == document.getElementById('code'))
+    return;
+  
+  if (evt.keyCode == 's'.charCodeAt(0))
+    save();
+  else if (evt.keyCode == 'l'.charCodeAt(0))
+    load();
+  else if (evt.keyCode == ' '.charCodeAt(0))
+    jump();
+  else if (evt.keyCode == 'r'.charCodeAt(0))
+    restart();
+  else if (evt.keyCode == '1'.charCodeAt(0))
+    setColor(1);
+  else if (evt.keyCode == '2'.charCodeAt(0))
+    setColor(2);
+  else if (evt.keyCode == '3'.charCodeAt(0))
+    setColor(3);
+  else if (evt.keyCode == '4'.charCodeAt(0))
+    setColor(4);
+  else if (evt.keyCode == '5'.charCodeAt(0))
+    setColor(5);
+  else if (evt.keyCode == '6'.charCodeAt(0))
+    setColor(6);
+  else if (evt.keyCode == '7'.charCodeAt(0))
+    setColor(7);
+  else if (evt.keyCode == '8'.charCodeAt(0))
+    setColor(8);
+  else if (evt.keyCode == '9'.charCodeAt(0))
+    setColor(9);
+};
+
 GameEditor.prototype.destroy = function() {
   canvas.removeEventListener('mouseup', this.onMouseUp);
+  document.removeEventListener('keypress', this.onKeyPress);
 };
 
 var MAX_VEL = 100;
@@ -141,8 +177,10 @@ var game_editor = new GameEditor(ctx);
 function setColor(color_ix) {
   current_color_ix = color_ix;
   document.getElementById('cur_color').style.backgroundColor = colors[color_ix];
-  if (selected_block)
+  if (selected_block) {
     selected_block.type = current_color_ix;
+    updateProperties(selected_block);
+  }
 }
 
 function createBlock(x, y) {
@@ -164,11 +202,18 @@ function createBlock(x, y) {
 function selectBlock(obj) {
   selected_block = obj;
   updateProperties(obj);
+  document.getElementById('properties').style.display = 'block';
+}
+
+function deselectBlock() {
+  selected_block = null;
+  document.getElementById('properties').style.display = 'none';
 }
 
 function updateProperties(obj) {
   document.getElementById('is-solid').checked = obj.is_solid;
   document.getElementById('code').value = obj.code || '';
+  document.getElementById('edit-img').textContent = 'Edit Image ' + obj.type;
 }
 
 requestAnimationFrame(draw);
@@ -324,39 +369,6 @@ function getIntersection(rect1, rect2) {
   return {x1: x1, y1: y1, x2: x2, y2: y2};
 }
 
-// load & save
-document.addEventListener('keypress', function(evt) {
-  if (document.activeElement && document.activeElement == document.getElementById('code'))
-    return;
-  
-  if (evt.keyCode == 's'.charCodeAt(0))
-    save();
-  else if (evt.keyCode == 'l'.charCodeAt(0))
-    load();
-  else if (evt.keyCode == ' '.charCodeAt(0))
-    jump();
-  else if (evt.keyCode == 'r'.charCodeAt(0))
-    restart();
-  else if (evt.keyCode == '1'.charCodeAt(0))
-    setColor(1);
-  else if (evt.keyCode == '2'.charCodeAt(0))
-    setColor(2);
-  else if (evt.keyCode == '3'.charCodeAt(0))
-    setColor(3);
-  else if (evt.keyCode == '4'.charCodeAt(0))
-    setColor(4);
-  else if (evt.keyCode == '5'.charCodeAt(0))
-    setColor(5);
-  else if (evt.keyCode == '6'.charCodeAt(0))
-    setColor(6);
-  else if (evt.keyCode == '7'.charCodeAt(0))
-    setColor(7);
-  else if (evt.keyCode == '8'.charCodeAt(0))
-    setColor(8);
-  else if (evt.keyCode == '9'.charCodeAt(0))
-    setColor(9);
-});
-
 document.getElementById('code').addEventListener('keypress', function(evt) {
   var block = selected_block;
   setTimeout(function() {
@@ -397,7 +409,7 @@ document.addEventListener('keydown', function(evt) {
     var ix = objects.indexOf(selected_block);
     if (ix > -1)
       objects.splice(ix, 1);
-    selected_block = null;
+    deselectBlock();
   }
   else if (evt.keyCode == ESC) {
     if (img_editor) {
@@ -406,7 +418,7 @@ document.addEventListener('keydown', function(evt) {
       game_editor = new GameEditor(ctx);
     }
     else if (selected_block) {
-      selected_block = null;
+      deselectBlock();
     }
   }
 });
@@ -490,13 +502,22 @@ ImageEditor.prototype.onMouseUp = function(evt) {
     return;
 
   var ix = this.coordsToIx(this.img_data.width, x, y);
-  this.img_data.data[ix] = rgb[0];
-  this.img_data.data[ix+1] = rgb[1];
-  this.img_data.data[ix+2] = rgb[2];
-  this.img_data.data[ix+3] = 255; // alpha channel
+  var data = this.img_data.data;
+  if (data[ix] != rgb[0] || data[ix+1] != rgb[1] || data[ix+2] != rgb[2]) {
+    data[ix] = rgb[0];
+    data[ix+1] = rgb[1];
+    data[ix+2] = rgb[2];
+    data[ix+3] = 255; // alpha channel
+  }
+  else {
+    data[ix] = 255;
+    data[ix+1] = 255;
+    data[ix+2] = 255;
+    data[ix+3] = 255; // alpha channel
+  }
 };
 
-ImageEditor.prototype.onKeyPress = function() {
+ImageEditor.prototype.onKeyPress = function(evt) {
   if (evt.keyCode == '0'.charCodeAt(0))
     this.color_ix = 0;
   else if (evt.keyCode == '1'.charCodeAt(0))
