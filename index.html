@@ -508,7 +508,6 @@ ImageEditor.rgb = [
 ImageEditor.prototype.onMouseUp = function(evt) {
   var x = Math.floor(evt.pageX / this.px_size);
   var y = Math.floor(evt.pageY / this.px_size);
-  var rgb = ImageEditor.rgb[this.color_ix];
   
   // user clicked outside the image size
   if (x >= block_size || y >= block_size)
@@ -516,18 +515,37 @@ ImageEditor.prototype.onMouseUp = function(evt) {
 
   var ix = this.coordsToIx(this.img_data.width, x, y);
   var data = this.img_data.data;
-  if (data[ix] != rgb[0] || data[ix+1] != rgb[1] || data[ix+2] != rgb[2]) {
-    data[ix] = rgb[0];
-    data[ix+1] = rgb[1];
-    data[ix+2] = rgb[2];
-    data[ix+3] = 255; // alpha channel
-  }
-  else {
-    data[ix] = 255;
-    data[ix+1] = 255;
-    data[ix+2] = 255;
-    data[ix+3] = 255; // alpha channel
-  }
+  var rgb = ImageEditor.rgb[this.color_ix];
+  if (!this.isPixel(x, y, this.color_ix))
+    this.setPixel(x, y, this.color_ix);
+  else
+    this.clearPixel(x, y);
+};
+
+ImageEditor.prototype.setPixel = function(x, y, color_ix) {
+  var ix = this.coordsToIx(this.img_data.width, x, y);
+  var rgb = ImageEditor.rgb[color_ix];
+  var data = this.img_data.data;
+  data[ix] = rgb[0];
+  data[ix+1] = rgb[1];
+  data[ix+2] = rgb[2];
+  data[ix+3] = 255; // alpha channel
+};
+
+ImageEditor.prototype.isPixel = function(x, y, color_ix) {
+  var ix = this.coordsToIx(this.img_data.width, x, y);
+  var data = this.img_data.data;
+  var rgb = ImageEditor.rgb[color_ix];
+  return data[ix] == rgb[0] || data[ix+1] == rgb[1] || data[ix+2] == rgb[2]
+};
+
+ImageEditor.prototype.clearPixel = function(x, y) {
+  var ix = this.coordsToIx(this.img_data.width, x, y);
+  var data = this.img_data.data;
+  data[ix] = 255;
+  data[ix+1] = 255;
+  data[ix+2] = 255;
+  data[ix+3] = 255; // alpha channel
 };
 
 ImageEditor.prototype.onKeyPress = function(evt) {
@@ -551,6 +569,14 @@ ImageEditor.prototype.onKeyPress = function(evt) {
     this.color_ix = 8;
   else if (evt.keyCode == '9'.charCodeAt(0))
     this.color_ix = 9;
+  else if (evt.keyCode == 'f'.charCodeAt(0))
+    this.fill(this.color_ix);
+};
+
+ImageEditor.prototype.fill = function(color_ix) {
+  for (var x = 0; x < block_size; x++)
+    for (var y = 0; y < block_size; y++)
+      this.setPixel(x, y, color_ix);
 };
 
 ImageEditor.prototype.draw = function() {
