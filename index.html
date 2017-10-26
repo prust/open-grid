@@ -100,10 +100,15 @@ canvas.addEventListener('mouseup', function(evt) {
       obj_under_mouse = obj;
   }
 
-  if (obj_under_mouse)
-    selectBlock(obj_under_mouse);
-  else
+  if (obj_under_mouse) {
+    if (obj_under_mouse == selected_block)
+      selected_block = null;
+    else
+      selectBlock(obj_under_mouse);
+  }
+  else {
     createBlock(evt.pageX, evt.pageY);
+  }
 });
 
 function setColor(color_ix) {
