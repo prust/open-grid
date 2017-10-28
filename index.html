@@ -74,15 +74,20 @@ canvas.setAttribute('width', window.innerWidth || document.body.clientWidth);
 canvas.setAttribute('height', window.innerHeight || document.body.clientHeight);
 
 function GameEditor(ctx) {
+  this.is_drawing = false;
   this.setColor(current_color_ix || 1);
 
   this.onMouseUp = this.onMouseUp.bind(this);
+  this.onMouseMove = this.onMouseMove.bind(this);
+  this.onMouseDown = this.onMouseDown.bind(this);
   this.onKeyPress = this.onKeyPress.bind(this);
   canvas.addEventListener('mouseup', this.onMouseUp);
+  canvas.addEventListener('mousemove', this.onMouseMove);
+  canvas.addEventListener('mousedown', this.onMouseDown);
   document.addEventListener('keypress', this.onKeyPress);
 }
 
-GameEditor.prototype.onMouseUp = function(evt) {
+GameEditor.prototype.onMouseDown = function(evt) {
   var pt = {x: evt.pageX, y: evt.pageY};
   var obj_under_mouse;
   for (var i = 0; i < objects.length; i++) {
@@ -99,7 +104,28 @@ GameEditor.prototype.onMouseUp = function(evt) {
   }
   else {
     createBlock(evt.pageX, evt.pageY);
+    this.is_drawing = true;
   }
+};
+
+GameEditor.prototype.onMouseMove = function(evt) {
+  if (!this.is_drawing)
+    return;
+
+  var pt = {x: evt.pageX, y: evt.pageY};
+  var obj_under_mouse;
+  for (var i = 0; i < objects.length; i++) {
+    var obj = objects[i];
+    if (intersectsPoint(obj, pt))
+      obj_under_mouse = obj;
+  }
+  
+  if (!obj_under_mouse)
+    createBlock(evt.pageX, evt.pageY);
+};
+
+GameEditor.prototype.onMouseUp = function(evt) {
+  this.is_drawing = false;
 };
 
 // load & save
@@ -146,6 +172,8 @@ GameEditor.prototype.setColor = function(color_ix) {
 
 GameEditor.prototype.destroy = function() {
   canvas.removeEventListener('mouseup', this.onMouseUp);
+  canvas.removeEventListener('mousedown', this.onMouseDown);
+  canvas.removeEventListener('mousemove', this.onMouseMove);
   document.removeEventListener('keypress', this.onKeyPress);
 };
 
@@ -471,6 +499,8 @@ function ImageEditor(ctx, img_ix) {
   this.px_size = 15;
   this.y = 50;
   this.x = 5;
+  this.is_drawing = false;
+  this.is_erasing = false;
   if (!imgs[img_ix]) {
     imgs[img_ix] = ctx.createImageData(block_size, block_size);
 
@@ -485,9 +515,13 @@ function ImageEditor(ctx, img_ix) {
   this.updateColorIndicator();
 
   this.onKeyPress = this.onKeyPress.bind(this);
+  this.onMouseDown = this.onMouseDown.bind(this);
+  this.onMouseMove = this.onMouseMove.bind(this);
   this.onMouseUp = this.onMouseUp.bind(this);
   document.addEventListener('keypress', this.onKeyPress);
   document.addEventListener('mouseup', this.onMouseUp);
+  document.addEventListener('mousemove', this.onMouseMove);
+  document.addEventListener('mousedown', this.onMouseDown);
 };
 
 // official DawnBringer16 palette
@@ -510,21 +544,45 @@ ImageEditor.rgb = [
   [222, 238, 214] // #DEEED6 White
 ];
 
-ImageEditor.prototype.onMouseUp = function(evt) {
+ImageEditor.prototype.onMouseDown = function(evt) {
   var x = Math.floor((evt.pageX - this.x) / this.px_size);
   var y = Math.floor((evt.pageY - this.y) / this.px_size);
-  
+
   // user clicked outside the image size
   if (x < 0 || x >= block_size || y < 0 || y >= block_size)
     return;
 
-  var ix = this.coordsToIx(this.img_data.width, x, y);
-  var data = this.img_data.data;
-  var rgb = ImageEditor.rgb[this.color_ix];
-  if (!this.isPixel(x, y, this.color_ix))
-    this.setPixel(x, y, this.color_ix);
+  if (this.isPixel(x, y, this.color_ix))
+    this.is_erasing = true;
   else
+    this.is_drawing = true;
+
+  if (this.is_erasing)
     this.clearPixel(x, y);
+  else if (this.is_drawing)
+    this.setPixel(x, y, this.color_ix);
+};
+
+ImageEditor.prototype.onMouseMove = function(evt) {
+  if (!this.is_erasing && !this.is_drawing)
+    return;
+
+  var x = Math.floor((evt.pageX - this.x) / this.px_size);
+  var y = Math.floor((evt.pageY - this.y) / this.px_size);
+
+  // user clicked outside the image size
+  if (x < 0 || x >= block_size || y < 0 || y >= block_size)
+    return;
+
+  if (this.is_erasing)
+    this.clearPixel(x, y);
+  else if (this.is_drawing)
+    this.setPixel(x, y, this.color_ix);
+};
+
+ImageEditor.prototype.onMouseUp = function(evt) {
+  this.is_drawing = false;
+  this.is_erasing = false;
 };
 
 ImageEditor.prototype.setPixel = function(x, y, color_ix) {
@@ -623,6 +681,8 @@ ImageEditor.prototype.coordsToIx = function(img_w, x, y) {
 ImageEditor.prototype.destroy = function() {
   document.removeEventListener('keypress', this.onKeyPress);
   document.removeEventListener('mouseup', this.onMouseUp);
+  document.removeEventListener('mousedown', this.onMouseDown);
+  document.removeEventListener('mousemove', this.onMouseMove);
 };
 
 // public API functions (available to the game designer)
