@@ -74,9 +74,10 @@ textarea {
 document.body.style.overflow = 'hidden';
 
 var canvas = $('canvas');
+var viewport = new Viewport(window.innerWidth || document.body.clientWidth, window.innerHeight|| document.body.clientHeight);
+canvas.setAttribute('width', viewport.width);
+canvas.setAttribute('height', viewport.height);
 var ctx = canvas.getContext('2d');
-canvas.setAttribute('width', window.innerWidth || document.body.clientWidth);
-canvas.setAttribute('height', window.innerHeight || document.body.clientHeight);
 
 $('properties').addEventListener('mouseover', function() {
   var prop_panel = $('properties');
@@ -107,7 +108,11 @@ function GameEditor(ctx) {
 }
 
 GameEditor.prototype.onMouseDown = function(evt) {
-  var pt = {x: evt.pageX, y: evt.pageY};
+  var pt = {
+    x: evt.pageX + viewport.transform_x,
+    y: evt.pageY + viewport.transform_y
+  };
+
   var obj_under_mouse;
   for (var i = 0; i < objects.length; i++) {
     var obj = objects[i];
@@ -122,7 +127,7 @@ GameEditor.prototype.onMouseDown = function(evt) {
       selectBlock(obj_under_mouse);
   }
   else {
-    createBlock(evt.pageX, evt.pageY);
+    createBlock(pt.x, pt.y);
     this.is_drawing = true;
   }
 };
@@ -131,7 +136,10 @@ GameEditor.prototype.onMouseMove = function(evt) {
   if (!this.is_drawing)
     return;
 
-  var pt = {x: evt.pageX, y: evt.pageY};
+  var pt = {
+    x: evt.pageX + viewport.transform_x,
+    y: evt.pageY + viewport.transform_y
+  };
   var obj_under_mouse;
   for (var i = 0; i < objects.length; i++) {
     var obj = objects[i];
@@ -140,7 +148,7 @@ GameEditor.prototype.onMouseMove = function(evt) {
   }
   
   if (!obj_under_mouse)
-    createBlock(evt.pageX, evt.pageY);
+    createBlock(pt.x, pt.y);
 };
 
 GameEditor.prototype.onMouseUp = function(evt) {
@@ -265,7 +273,7 @@ function updateProperties(obj) {
 
 requestAnimationFrame(draw);
 function draw() {
-  ctx.clearRect(0, 0, grid_width * block_size, grid_height * block_size);
+  ctx.clearRect(viewport.transform_x, viewport.transform_y, viewport.width, viewport.height);
   
   if (img_editor) {
     img_editor.draw();
@@ -372,6 +380,9 @@ function update() {
       onCollide(obj);
     }
   }
+
+  if (player.vel_x || player.vel_y)
+    viewport.follow(player);
 }
 
 function onCollide(obj) {
@@ -511,6 +522,36 @@ function jump() {
   else if (player.accel_x < 0)
     player.vel_x = 20;
 }
+
+function Viewport(width, height) {
+  this.width = width;
+  this.height = height;
+  this.transform_x = 0;
+  this.transform_y = 0;
+}
+
+Viewport.prototype.follow = function(pos) {
+  var perct_x = (pos.x - this.transform_x) / this.width;
+  var perct_y = (pos.y - this.transform_y) / this.height;
+
+  if (perct_x > .8) {
+    var dest_x = Math.round(this.width * .8);
+    this.transform_x = pos.x - dest_x;
+  }
+  else if (perct_x < .2) {
+    var dest_x = Math.round(this.width * .2);
+    this.transform_x = pos.x - dest_x; 
+  }
+  if (perct_y > .8) {
+    var dest_y = Math.round(this.height * .8);
+    this.transform_y = pos.y - dest_y;
+  }
+  else if (perct_y < .2) {
+    var dest_y = Math.round(this.height * .2);
+    this.transform_y = pos.y - dest_y;
+  }
+  ctx.setTransform(1, 0, 0, 1, -this.transform_x, -this.transform_y);
+};
 
 // DOM helpers
 function $(id) {
