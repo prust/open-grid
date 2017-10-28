@@ -22,22 +22,31 @@ body { margin: 0; padding: 0; }
 #properties {
   position: absolute;
   z-index: 100;
-  right: 0;
+  top: 37px;
   bottom: 0;
-  width: 400px;
-  height: 200px;
+  width: 200px;
   background-color: #eee;
   color: #666;
   padding: 5px;
+}
+#properties.left {
+  left: 0;
+}
+#properties.right {
+  right: 0;
+}
+#properties.faded {
+  opacity: 0.5;
 }
 #properties td {
   vertical-align: top
 }
 ul {
   margin: 0;
+  padding-left: 20px;
 }
 textarea {
-  width: 390px;
+  width: 195px;
   height: 80px;
 }
 </style>
@@ -45,21 +54,16 @@ textarea {
 <body>
 <canvas id="canvas">
 </canvas>
-<div id="properties">
+<div id="properties" style="right: 0px">
   API:
-  <table><tr><td>
-    <ul>
-      <li>setGravity(x, y)</li>
-      <li>setSpeed(x, y)</li>
-      <li>setPosition(x, y)</li>
-      <li>setStart(x, y)</li>
-    </ul>
-  </td><td>
-    <ul>
-      <li>restart()</li>
-      <li>loadLevel(level_name)</li>
-    </ul>
-  </td></tr></table>
+  <ul>
+    <li>setGravity(x, y)</li>
+    <li>setSpeed(x, y)</li>
+    <li>setPosition(x, y)</li>
+    <li>setStart(x, y)</li>
+    <li>restart()</li>
+    <li>loadLevel(level_name)</li>
+  </ul><br>
   <input type="checkbox" id="is-solid"> Solid <button id="edit-img">Edit Image</button><br>
 <textarea id="code"></textarea>
 </div>
@@ -68,10 +72,25 @@ textarea {
 </div>
 <script>
 document.body.style.overflow = 'hidden';
-var canvas = document.getElementById('canvas');
+
+var canvas = $('canvas');
 var ctx = canvas.getContext('2d');
 canvas.setAttribute('width', window.innerWidth || document.body.clientWidth);
 canvas.setAttribute('height', window.innerHeight || document.body.clientHeight);
+
+$('properties').addEventListener('mouseover', function() {
+  var prop_panel = $('properties');
+  if (hasClass(prop_panel, 'faded')) {
+    if (hasClass(prop_panel, 'left')) {
+      removeClass(prop_panel, 'left');
+      addClass(prop_panel, 'right');
+    }
+    else {
+      removeClass(prop_panel, 'right');
+      addClass(prop_panel, 'left');
+    }
+  }
+});
 
 function GameEditor(ctx) {
   this.is_drawing = false;
@@ -230,12 +249,12 @@ function createBlock(x, y) {
 function selectBlock(obj) {
   selected_block = obj;
   updateProperties(obj);
-  document.getElementById('properties').style.display = 'block';
+  removeClass($('properties'), 'faded');
 }
 
 function deselectBlock() {
   selected_block = null;
-  document.getElementById('properties').style.display = 'none';
+  addClass($('properties'), 'faded');
 }
 
 function updateProperties(obj) {
@@ -491,6 +510,35 @@ function jump() {
     player.vel_x = -20;
   else if (player.accel_x < 0)
     player.vel_x = 20;
+}
+
+// DOM helpers
+function $(id) {
+  return document.getElementById(id);
+}
+
+function hasClass(el, class_name) {
+  var class_names = el.className.split(' ');
+  return class_names.indexOf(class_name) > -1;
+}
+
+function addClass(el, class_name) {
+  var class_names = el.className.split(' ');
+  if (class_names.indexOf(class_name) > -1)
+    return;
+
+  class_names.push(class_name);
+  el.className = class_names.join(' ');
+}
+
+function removeClass(el, class_name) {
+  var class_names = el.className.split(' ');
+  var ix = class_names.indexOf(class_name);
+  if (ix == -1)
+    return;
+
+  class_names.splice(ix, 1);
+  el.className = class_names.join(' ');
 }
 
 function ImageEditor(ctx, img_ix) {
