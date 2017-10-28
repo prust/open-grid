@@ -15,3 +15,4 @@ Features:
 - [x] Click selected block to deselect
 - [x] Ability to move between levels (`loadLevel(level_name)`)
 - [x] Image Editor
+- [x] Infinite scrolling
