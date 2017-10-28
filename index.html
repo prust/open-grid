@@ -287,7 +287,9 @@ function draw() {
     for (var i = 0; i < objects.length; i++) {
       var obj = objects[i];
       if (imgs[obj.type]) {
-        ctx.putImageData(imgs[obj.type], obj.x, obj.y);
+        // the transformation matrix doesn't affect putImageData()
+        // so we have to transform manually
+        ctx.putImageData(imgs[obj.type], obj.x - viewport.transform_x, obj.y - viewport.transform_y);
       }
       else {
         ctx.fillStyle = colors[obj.type];
@@ -476,6 +478,7 @@ document.addEventListener('keydown', function(evt) {
       img_editor.destroy();
       img_editor = null;
       game_editor = new GameEditor(ctx);
+      viewport.follow(player);
     }
     else if (selected_block) {
       deselectBlock();
@@ -603,14 +606,15 @@ function ImageEditor(ctx, img_ix) {
   this.img_data = imgs[img_ix];
   this.ctx = ctx;
 
+  // reset the transform from the game's viewport
+  this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+
   this.updateColorIndicator();
 
   this.onKeyPress = this.onKeyPress.bind(this);
   this.onMouseDown = this.onMouseDown.bind(this);
   this.onMouseMove = this.onMouseMove.bind(this);
-  this.onMouseUp = this.onMouseUp.bind(this);
   document.addEventListener('keypress', this.onKeyPress);
-  document.addEventListener('mouseup', this.onMouseUp);
   document.addEventListener('mousemove', this.onMouseMove);
   document.addEventListener('mousedown', this.onMouseDown);
 };
@@ -643,10 +647,14 @@ ImageEditor.prototype.onMouseDown = function(evt) {
   if (x < 0 || x >= block_size || y < 0 || y >= block_size)
     return;
 
-  if (this.isPixel(x, y, this.color_ix))
+  if (this.isPixel(x, y, this.color_ix)) {
     this.is_erasing = true;
-  else
+    this.is_drawing = false;
+  }
+  else {
+    this.is_erasing = false;
     this.is_drawing = true;
+  }
 
   if (this.is_erasing)
     this.clearPixel(x, y);
@@ -655,13 +663,13 @@ ImageEditor.prototype.onMouseDown = function(evt) {
 };
 
 ImageEditor.prototype.onMouseMove = function(evt) {
-  if (!this.is_erasing && !this.is_drawing)
+  if (evt.buttons %2 != LEFT_BTN)
     return;
 
   var x = Math.floor((evt.pageX - this.x) / this.px_size);
   var y = Math.floor((evt.pageY - this.y) / this.px_size);
 
-  // user clicked outside the image size
+  // user is dragging outside the image size
   if (x < 0 || x >= block_size || y < 0 || y >= block_size)
     return;
 
@@ -669,11 +677,6 @@ ImageEditor.prototype.onMouseMove = function(evt) {
     this.clearPixel(x, y);
   else if (this.is_drawing)
     this.setPixel(x, y, this.color_ix);
-};
-
-ImageEditor.prototype.onMouseUp = function(evt) {
-  this.is_drawing = false;
-  this.is_erasing = false;
 };
 
 ImageEditor.prototype.setPixel = function(x, y, color_ix) {
@@ -771,7 +774,6 @@ ImageEditor.prototype.coordsToIx = function(img_w, x, y) {
 
 ImageEditor.prototype.destroy = function() {
   document.removeEventListener('keypress', this.onKeyPress);
-  document.removeEventListener('mouseup', this.onMouseUp);
   document.removeEventListener('mousedown', this.onMouseDown);
   document.removeEventListener('mousemove', this.onMouseMove);
 };
