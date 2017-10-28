@@ -2,7 +2,17 @@
 <html>
 <head>
 <style>
-body { margin: 0; padding: 0; }
+body {
+  margin: 0;
+  padding: 0;
+  -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+     -khtml-user-select: none; /* Konqueror HTML */
+       -moz-user-select: none; /* Firefox */
+        -ms-user-select: none; /* Internet Explorer/Edge */
+            user-select: none; /* Non-prefixed version, currently
+                                  supported by Chrome and Opera */
+}
 #header {
   position: absolute;
   top: 0;
@@ -94,14 +104,11 @@ $('properties').addEventListener('mouseover', function() {
 });
 
 function GameEditor(ctx) {
-  this.is_drawing = false;
   this.setColor(current_color_ix || 1);
 
-  this.onMouseUp = this.onMouseUp.bind(this);
   this.onMouseMove = this.onMouseMove.bind(this);
   this.onMouseDown = this.onMouseDown.bind(this);
   this.onKeyPress = this.onKeyPress.bind(this);
-  canvas.addEventListener('mouseup', this.onMouseUp);
   canvas.addEventListener('mousemove', this.onMouseMove);
   canvas.addEventListener('mousedown', this.onMouseDown);
   document.addEventListener('keypress', this.onKeyPress);
@@ -128,12 +135,12 @@ GameEditor.prototype.onMouseDown = function(evt) {
   }
   else {
     createBlock(pt.x, pt.y);
-    this.is_drawing = true;
   }
 };
 
+var LEFT_BTN = 1;
 GameEditor.prototype.onMouseMove = function(evt) {
-  if (!this.is_drawing)
+  if (evt.buttons % 2 != LEFT_BTN)
     return;
 
   var pt = {
@@ -149,10 +156,6 @@ GameEditor.prototype.onMouseMove = function(evt) {
   
   if (!obj_under_mouse)
     createBlock(pt.x, pt.y);
-};
-
-GameEditor.prototype.onMouseUp = function(evt) {
-  this.is_drawing = false;
 };
 
 // load & save
@@ -198,7 +201,6 @@ GameEditor.prototype.setColor = function(color_ix) {
 };
 
 GameEditor.prototype.destroy = function() {
-  canvas.removeEventListener('mouseup', this.onMouseUp);
   canvas.removeEventListener('mousedown', this.onMouseDown);
   canvas.removeEventListener('mousemove', this.onMouseMove);
   document.removeEventListener('keypress', this.onKeyPress);
