@@ -416,6 +416,8 @@ function update() {
   player.y = player.y + player.vel_y;
 
   // super-simple AABB collision detection & "slide" resolution
+  // TODO: switch to the algorithm outlined in:
+  // http://higherorderfun.com/blog/2012/05/20/the-guide-to-implementing-2d-platformers/
   for (var i = 0; i < objects.length; i++) {
     var obj = objects[i];
     var intersection = getIntersection(
