@@ -2,7 +2,11 @@
 <html>
 <head>
 <style>
+html {
+  background-color: #ffffff;
+}
 body {
+  background-colo: #ffffff;
   margin: 0;
   padding: 0;
   -webkit-touch-callout: none; /* iOS Safari */
@@ -27,6 +31,17 @@ body {
   height: 28px;
   width: 36px;
   border: 1px solid #666666;
+}
+#header #fullscreen {
+  position: absolute;
+  right: 6px;
+  top: 3px;
+  font-size: 30px;
+  color: #ccc;
+}
+#header #fullscreen:hover {
+  color: #999;
+  cursor: pointer;
 }
 
 #properties {
@@ -60,6 +75,7 @@ textarea {
   height: 80px;
 }
 </style>
+<link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
 </head>
 <body>
 <canvas id="canvas">
@@ -78,16 +94,61 @@ textarea {
 <textarea id="code"></textarea>
 </div>
 <div id="header">
-  <div id="cur_color"></div>
+  <div id="cur_color"></div><div id="fullscreen" class="fa fa-arrows-alt"></div>
 </div>
 <script>
+function Viewport(width, height) {
+  this.width = width;
+  this.height = height;
+  this.transform_x = 0;
+  this.transform_y = 0;
+}
+
+Viewport.prototype.follow = function(pos) {
+  var perct_x = (pos.x - this.transform_x) / this.width;
+  var perct_y = (pos.y - this.transform_y) / this.height;
+
+  if (perct_x > .8) {
+    var dest_x = Math.round(this.width * .8);
+    this.transform_x = pos.x - dest_x;
+  }
+  else if (perct_x < .2) {
+    var dest_x = Math.round(this.width * .2);
+    this.transform_x = pos.x - dest_x; 
+  }
+  if (perct_y > .8) {
+    var dest_y = Math.round(this.height * .8);
+    this.transform_y = pos.y - dest_y;
+  }
+  else if (perct_y < .2) {
+    var dest_y = Math.round(this.height * .2);
+    this.transform_y = pos.y - dest_y;
+  }
+  this.updateTransform();
+};
+
+Viewport.prototype.updateTransform = function() {
+  ctx.setTransform(1, 0, 0, 1, -this.transform_x, -this.transform_y);
+};
+
 document.body.style.overflow = 'hidden';
 
 var canvas = $('canvas');
-var viewport = new Viewport(window.innerWidth || document.body.clientWidth, window.innerHeight|| document.body.clientHeight);
-canvas.setAttribute('width', viewport.width);
-canvas.setAttribute('height', viewport.height);
 var ctx = canvas.getContext('2d');
+
+var viewport = new Viewport(0, 0);
+setupViewport();
+window.addEventListener('resize', setupViewport);
+
+function setupViewport() {
+  viewport.width = window.innerWidth || document.body.clientWidth;
+  viewport.height = window.innerHeight || document.body.clientHeight;
+  canvas.setAttribute('width', viewport.width);
+  canvas.setAttribute('height', viewport.height);
+
+  // whenever we mess with the canvas width/height, we need to reset the transform
+  viewport.updateTransform();
+}
 
 $('properties').addEventListener('mouseover', function() {
   var prop_panel = $('properties');
@@ -101,6 +162,16 @@ $('properties').addEventListener('mouseover', function() {
       addClass(prop_panel, 'left');
     }
   }
+});
+
+$('fullscreen').addEventListener('click', function() {
+  var body = document.body;
+  var reqFullscreen = body.requestFullscreen || body.webkitRequestFullscreen || body.mozRequestFullScreen || body.msRequestFullscreen;
+  var exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+  if (document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement)
+    exitFullscreen && exitFullscreen.apply(document);
+  else
+    reqFullscreen && reqFullscreen.apply(body);
 });
 
 function GameEditor(ctx) {
@@ -527,36 +598,6 @@ function jump() {
   else if (player.accel_x < 0)
     player.vel_x = 20;
 }
-
-function Viewport(width, height) {
-  this.width = width;
-  this.height = height;
-  this.transform_x = 0;
-  this.transform_y = 0;
-}
-
-Viewport.prototype.follow = function(pos) {
-  var perct_x = (pos.x - this.transform_x) / this.width;
-  var perct_y = (pos.y - this.transform_y) / this.height;
-
-  if (perct_x > .8) {
-    var dest_x = Math.round(this.width * .8);
-    this.transform_x = pos.x - dest_x;
-  }
-  else if (perct_x < .2) {
-    var dest_x = Math.round(this.width * .2);
-    this.transform_x = pos.x - dest_x; 
-  }
-  if (perct_y > .8) {
-    var dest_y = Math.round(this.height * .8);
-    this.transform_y = pos.y - dest_y;
-  }
-  else if (perct_y < .2) {
-    var dest_y = Math.round(this.height * .2);
-    this.transform_y = pos.y - dest_y;
-  }
-  ctx.setTransform(1, 0, 0, 1, -this.transform_x, -this.transform_y);
-};
 
 // DOM helpers
 function $(id) {
