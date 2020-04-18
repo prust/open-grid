@@ -1,5 +1,6 @@
-# open-grid
-Simple, open local game-prototyping platform on HTML5 canvas
+# Red Planet
+
+An immersive, rapid game builder, including a simple HTML5 game engine.
 
 Features:
 
