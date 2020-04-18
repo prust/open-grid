@@ -105,10 +105,7 @@ canvas {
   <input type="file" id="update-img"><br><br>
 
   Code:
-  <select id="event">
-    <option value="create">On Create</option>
-    <option value="collide">On Collide</option>
-  </select>
+  <select id="event"></select>
   <textarea id="code"></textarea>
   <canvas id="tileset"></canvas>
 </div>
@@ -133,6 +130,10 @@ var start_y = 0;
 var imgs = [];
 var zoom = 2;
 var level = {};
+var events = {
+  level: ['Start'],
+  tile: ['Create', 'Collide']
+};
 
 function Viewport(width, height) {
   this.width = width;
@@ -334,6 +335,17 @@ function updateProperties() {
 
   $('object_properties').style.display = selected_block ? 'block' : 'none';
   
+  while ($('event').options.length)
+    $('event').removeChild($('event').options[0]);
+
+  var evts = events[selected_block ? 'tile' : 'level'];
+  for (var evt_name of evts) {
+    var opt = document.createElement('option');
+    opt.appendChild(document.createTextNode(`On ${evt_name}`));
+    opt.value = evt_name.toLowerCase();
+    $('event').appendChild(opt); 
+  }
+
   var obj = selected_block || level;
   $('code').value = obj[$('event').value] || '';
   // $('edit-img').textContent = 'Edit Image ' + obj.type;
