@@ -6,7 +6,7 @@ html {
   background-color: #ffffff;
 }
 body {
-  background-colo: #ffffff;
+  background-color: #ffffff;
   margin: 0;
   padding: 0;
   -webkit-touch-callout: none; /* iOS Safari */
@@ -16,6 +16,7 @@ body {
         -ms-user-select: none; /* Internet Explorer/Edge */
             user-select: none; /* Non-prefixed version, currently
                                   supported by Chrome and Opera */
+  font-family: Helvetica;
 }
 #header {
   position: absolute;
@@ -32,16 +33,24 @@ body {
   width: 36px;
   border: 1px solid #666666;
 }
-#header #fullscreen {
-  position: absolute;
-  right: 6px;
-  top: 3px;
-  font-size: 30px;
-  color: #ccc;
+#header .fa {
+  position: absolute; font-size: 25px; color: #ccc; top: 6px;
 }
-#header #fullscreen:hover {
+#header .fa:hover {
   color: #999;
   cursor: pointer;
+}
+#header #load {
+  left: 6px;
+}
+#header #save {
+  left: 45px;
+}
+#header #fullscreen {
+  right: 6px;
+}
+#header #restart {
+  right: 40px;
 }
 
 #properties {
@@ -78,6 +87,7 @@ canvas {
 <canvas id="canvas">
 </canvas>
 <div id="properties" style="right: 0px">
+  <h3 id="properties_heading"></h3>
   API:
   <ul>
     <li>setGravity(x, y)</li>
@@ -87,15 +97,24 @@ canvas {
     <li>restart()</li>
     <li>loadLevel(level_name)</li>
   </ul><br>
-  <input type="checkbox" id="is-solid"> Solid<br>
+  <div id="object_properties">
+    <input type="checkbox" id="is-solid"> <label for="is-solid">Solid</label>
+  </div><br>
   <!--button id="edit-img">Edit Image</button><br-->
   <label for="update-img">Update Tileset:</label>
-  <input type="file" id="update-img"><br>
-<textarea id="code"></textarea>
-<canvas id="tileset"></canvas>
+  <input type="file" id="update-img"><br><br>
+
+  Code:
+  <select id="event">
+    <option value="create">On Create</option>
+    <option value="collide">On Collide</option>
+  </select>
+  <textarea id="code"></textarea>
+  <canvas id="tileset"></canvas>
 </div>
 <div id="header">
-  <div id="cur_color"></div><div id="fullscreen" class="fa fa-arrows-alt"></div>
+  <div id="load" class="fa fa-folder-open-o"></div><div id="save" class="fa fa-floppy-o"></div>
+  <!--div id="cur_color"></div--><div id="restart" class="fa fa-play-circle-o"></div><div id="fullscreen" class="fa fa-arrows-alt"></div>
 </div>
 <script>
 var MAX_VEL = 50;
@@ -113,6 +132,7 @@ var start_x = 0;
 var start_y = 0;
 var imgs = [];
 var zoom = 2;
+var level = {};
 
 function Viewport(width, height) {
   this.width = width;
@@ -171,6 +191,18 @@ function setupViewport() {
   viewport.updateTransform();
 }
 
+$('load').addEventListener('click', function() {
+  load();
+});
+
+$('save').addEventListener('click', function() {
+  save();
+});
+
+$('restart').addEventListener('click', function() {
+  restart();
+});
+
 $('fullscreen').addEventListener('click', function() {
   var body = document.body;
   var reqFullscreen = body.requestFullscreen || body.webkitRequestFullscreen || body.mozRequestFullScreen || body.msRequestFullscreen;
@@ -182,8 +214,6 @@ $('fullscreen').addEventListener('click', function() {
 });
 
 function GameEditor(ctx) {
-  this.setColor(current_color_ix || 1);
-
   this.onMouseMove = this.onMouseMove.bind(this);
   this.onMouseDown = this.onMouseDown.bind(this);
   this.onKeyPress = this.onKeyPress.bind(this);
@@ -216,7 +246,8 @@ GameEditor.prototype.onMouseDown = function(evt) {
     }
   }
   else {
-    createBlock(pt.x, pt.y);
+    var obj = createTile(pxToGrid(pt.x), pxToGrid(pt.y), current_color_ix);
+    selectBlock(obj);
   }
 };
 
@@ -236,8 +267,10 @@ GameEditor.prototype.onMouseMove = function(evt) {
       obj_under_mouse = obj;
   }
   
-  if (!obj_under_mouse)
-    createBlock(pt.x, pt.y);
+  if (!obj_under_mouse) {
+    var obj = createTile(pxToGrid(pt.x), pxToGrid(pt.y), current_color_ix);
+    selectBlock(obj);
+  }
   else
     obj_under_mouse.type = current_color_ix;
 };
@@ -247,41 +280,8 @@ GameEditor.prototype.onKeyPress = function(evt) {
   if (document.activeElement && document.activeElement == $('code'))
     return;
   
-  if (evt.keyCode == 's'.charCodeAt(0))
-    save();
-  else if (evt.keyCode == 'l'.charCodeAt(0))
-    load();
-  else if (evt.keyCode == ' '.charCodeAt(0))
+  if (evt.keyCode == ' '.charCodeAt(0))
     jump();
-  else if (evt.keyCode == 'r'.charCodeAt(0))
-    restart();
-  else if (evt.keyCode == '1'.charCodeAt(0))
-    this.setColor(1);
-  else if (evt.keyCode == '2'.charCodeAt(0))
-    this.setColor(2);
-  else if (evt.keyCode == '3'.charCodeAt(0))
-    this.setColor(3);
-  else if (evt.keyCode == '4'.charCodeAt(0))
-    this.setColor(4);
-  else if (evt.keyCode == '5'.charCodeAt(0))
-    this.setColor(5);
-  else if (evt.keyCode == '6'.charCodeAt(0))
-    this.setColor(6);
-  else if (evt.keyCode == '7'.charCodeAt(0))
-    this.setColor(7);
-  else if (evt.keyCode == '8'.charCodeAt(0))
-    this.setColor(8);
-  else if (evt.keyCode == '9'.charCodeAt(0))
-    this.setColor(9);
-};
-
-GameEditor.prototype.setColor = function(color_ix) {
-  current_color_ix = color_ix;
-  $('cur_color').style.backgroundColor = colors[color_ix];
-  if (selected_block) {
-    selected_block.type = current_color_ix;
-    updateProperties(selected_block);
-  }
 };
 
 GameEditor.prototype.destroy = function() {
@@ -307,38 +307,35 @@ var colors = [
 ];
 
 var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 0};
-createBlock(0, 8 * block_size);
+selectBlock(createTile(0, 8, current_color_ix));
 
 var game_editor = new GameEditor(ctx);
 
-function createBlock(x, y) {
-  x = Math.floor(x / block_size) * block_size;
-  y = Math.floor(y / block_size) * block_size;
-  var obj = {
-    x: x,
-    y: y,
-    w: block_size,
-    h: block_size,
-    type: current_color_ix,
-    is_solid: true
-  };
-
-  objects.push(obj);
-  selectBlock(obj);
-}
-
 function selectBlock(obj) {
+  saveCode();
   selected_block = obj;
   updateProperties(obj);
 }
 
 function deselectBlock() {
+  saveCode();
   selected_block = null;
+  updateProperties();
 }
 
-function updateProperties(obj) {
-  $('is-solid').checked = obj.is_solid;
-  $('code').value = obj.code || '';
+function updateProperties() {
+  if (selected_block) {
+    $('properties_heading').innerText = 'Object Properties';
+    $('is-solid').checked = selected_block.is_solid;
+  }
+  else {
+    $('properties_heading').innerText = 'Level Properties';
+  }
+
+  $('object_properties').style.display = selected_block ? 'block' : 'none';
+  
+  var obj = selected_block || level;
+  $('code').value = obj[$('event').value] || '';
   // $('edit-img').textContent = 'Edit Image ' + obj.type;
 }
 
@@ -466,17 +463,17 @@ function update() {
 }
 
 function onCollide(obj) {
-  if (obj.code) {
+  if (obj.collide) {
     try {
-      eval(obj.code);
+      eval(obj.collide);
     }
     catch(err) {
       alert(err.message);
-      var lines = obj.code.split('\n');
+      var lines = obj.collide.split('\n');
       for (var i = 0; i < lines.length; i++)
         lines[i] = '// ' + lines[i];
 
-      obj.code = lines.join('\n');
+      obj.collide = lines.join('\n');
       if (selected_block && selected_block == obj)
         updateProperties(obj);
     }
@@ -507,13 +504,24 @@ function getIntersection(rect1, rect2) {
   return {x1: x1, y1: y1, x2: x2, y2: y2};
 }
 
-$('code').addEventListener('keypress', function(evt) {
+function pxToGrid(px) {
+  return Math.floor(px / block_size);
+}
+
+$('code').addEventListener('blur', onBlur);
+$('code').addEventListener('change', onBlur);
+function onBlur(evt) {
+  setTimeout(saveCode, 0);
+}
+
+function saveCode() {
   var block = selected_block;
-  setTimeout(function() {
-    if (block)
-      block.code = evt.target.value;
-  }, 0);
-});
+  var evt_name = $('event').value;
+  if (block)
+    block[evt_name] = $('code').value;
+  else
+    level[evt_name] = $('code').value;
+}
 
 $('is-solid').addEventListener('change', function(evt) {
   if (selected_block)
@@ -526,11 +534,14 @@ $('is-solid').addEventListener('change', function(evt) {
 // });
 
 $('tileset').addEventListener('click', function(evt) {
+  if (!imgs[0])
+    return;
+
   // if we make the tileset map scrollable, we may need to use pageX
   var x = evt.clientX - getClientLeft(evt.target);
   var y = evt.clientY - getClientTop(evt.target);
-  x = Math.floor(x / block_size);
-  y = Math.floor(y / block_size);
+  x = pxToGrid(x);
+  y = pxToGrid(y);
   current_color_ix = x + y * num_tiles_w;
   renderTileset();
 });
@@ -654,7 +665,7 @@ document.addEventListener('keydown', function(evt) {
 
 function save() {
   var name = prompt('What would you like to name this level?');
-  var data = {objects: objects, images: []};
+  var data = {objects: objects, images: [], level: level};
   
   // serialize image pixel data
   for (var i = 0; i < imgs.length; i++) {
@@ -909,7 +920,10 @@ ImageEditor.prototype.destroy = function() {
   document.removeEventListener('mousemove', this.onMouseMove);
 };*/
 
+
+
 // public API functions (available to the game designer)
+
 function setGravity(x, y) {
   if (x != null)
     player.accel_x = x;
@@ -953,6 +967,7 @@ function loadLevel(level_name) {
     return alert('Sorry, no level with the name "' + level_name + '" exists.');
   var parsed = JSON.parse(json);
   objects = parsed.objects;
+  level = parsed.level;
   var images = parsed.images || [];
   for (var i = 0; i < 10; i++) {
     if (images[i])
@@ -962,6 +977,22 @@ function loadLevel(level_name) {
   }
 
   restart();
+}
+
+function createTile(x, y, ix) {
+  x = x * block_size;
+  y = y * block_size;
+  var obj = {
+    x: x,
+    y: y,
+    w: block_size,
+    h: block_size,
+    type: ix,
+    is_solid: true
+  };
+
+  objects.push(obj);
+  return obj;
 }
 
 </script>
