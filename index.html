@@ -162,10 +162,6 @@ setupViewport();
 window.addEventListener('resize', setupViewport);
 
 function setupViewport() {
-  //var scale = window.devicePixelRatio; // force to 1 for blurry canvas on retina
-// canvas.width = document.body.clientWidth * scale;
-// canvas.height = document.body.clientHeight * scale;
-
   viewport.width = Math.ceil(window.innerWidth / zoom);
   viewport.height = Math.ceil(window.innerHeight / zoom);
   canvas.width = window.innerWidth * devicePixelRatio;
@@ -198,8 +194,8 @@ function GameEditor(ctx) {
 
 GameEditor.prototype.onMouseDown = function(evt) {
   var pt = {
-    x: (evt.pageX + viewport.transform_x) / zoom,
-    y: (evt.pageY + viewport.transform_y) / zoom
+    x: Math.floor((evt.pageX + viewport.transform_x) / zoom),
+    y: Math.floor((evt.pageY + viewport.transform_y) / zoom)
   };
 
   var obj_under_mouse;
@@ -210,10 +206,14 @@ GameEditor.prototype.onMouseDown = function(evt) {
   }
 
   if (obj_under_mouse) {
-    if (obj_under_mouse == selected_block)
+    if (obj_under_mouse == selected_block) {
       deselectBlock();
-    else
+    }
+    else {
+      if (obj_under_mouse.type != current_color_ix)
+        obj_under_mouse.type = current_color_ix;
       selectBlock(obj_under_mouse);
+    }
   }
   else {
     createBlock(pt.x, pt.y);
@@ -226,8 +226,8 @@ GameEditor.prototype.onMouseMove = function(evt) {
     return;
 
   var pt = {
-    x: (evt.pageX + viewport.transform_x) / zoom,
-    y: (evt.pageY + viewport.transform_y) / zoom
+    x: Math.floor((evt.pageX + viewport.transform_x) / zoom),
+    y: Math.floor((evt.pageY + viewport.transform_y) / zoom)
   };
   var obj_under_mouse;
   for (var i = 0; i < objects.length; i++) {
@@ -238,6 +238,8 @@ GameEditor.prototype.onMouseMove = function(evt) {
   
   if (!obj_under_mouse)
     createBlock(pt.x, pt.y);
+  else
+    obj_under_mouse.type = current_color_ix;
 };
 
 // load & save
@@ -482,8 +484,8 @@ function onCollide(obj) {
 }
 
 function intersectsPoint(rect, pt) {
-  return rect.x < pt.x && rect.x + rect.w > pt.x &&
-    rect.y < pt.y && rect.y + rect.h > pt.y;
+  return rect.x <= pt.x && rect.x + rect.w > pt.x &&
+    rect.y <= pt.y && rect.y + rect.h > pt.y;
 }
 
 function getIntersection(rect1, rect2) {
@@ -559,30 +561,38 @@ $("update-img").addEventListener("change", function() {
 
   // load file into image object
   var file = this.files[0];
-  var url = URL.createObjectURL(file);
+  var data_url = URL.createObjectURL(file);
+  loadImage(0, data_url);
+});
+
+function loadImage(img_ix, data_url) {
   var img = new Image();
   
   img.onload = function() {
-    URL.revokeObjectURL(this.src); // free mem held by Object URL
+    // free the memory (unfortunately this is a blob-url ref, not a full data-url)
+    URL.revokeObjectURL(this.src);
 
-    var misaligned_dimensions = [];
-    if (img.width % block_size)
-      misaligned_dimensions.push(`width (${img.width})`);
-    if (img.height % block_size)
-      misaligned_dimensions.push(`height (${img.height})`)
-    if (misaligned_dimensions.length)
-      alert(`Warning: tileset image ${misaligned_dimensions.join(', ')} does not align with tile size (${block_size})`);
+    imgs[img_ix] = img;
 
-    num_tiles_w = Math.ceil(img.width / block_size);
-    num_tiles_h = Math.ceil(img.height / block_size);
-    imgs[0] = img; // ctx.getImageData(x * block_size, y * block_size, block_size, block_size);
-    $('tileset').setAttribute('width', img.width);
-    $('tileset').setAttribute('height', img.height);
-    renderTileset();
+    if (img_ix == 0) { // the tileset image
+      var misaligned_dimensions = [];
+      if (img.width % block_size)
+        misaligned_dimensions.push(`width (${img.width})`);
+      if (img.height % block_size)
+        misaligned_dimensions.push(`height (${img.height})`)
+      if (misaligned_dimensions.length)
+        alert(`Warning: tileset image ${misaligned_dimensions.join(', ')} does not align with tile size (${block_size})`);
+
+      num_tiles_w = Math.ceil(img.width / block_size);
+      num_tiles_h = Math.ceil(img.height / block_size);
+      $('tileset').setAttribute('width', img.width);
+      $('tileset').setAttribute('height', img.height);
+      renderTileset();
+    }
   };
 
-  img.src = url;
-});
+  img.src = data_url;
+}
 
 function renderTileset() {
   var tileset_ctx = $('tileset').getContext('2d');
@@ -649,9 +659,12 @@ function save() {
   // serialize image pixel data
   for (var i = 0; i < imgs.length; i++) {
     if (imgs[i]) {
-      data.images[i] = [];
-      for (var j = 0; j < imgs[i].data.length; j++)
-        data.images[i][j] = imgs[i].data[j];
+      var canvas = document.createElement('canvas');
+      canvas.width = imgs[i].width;
+      canvas.height = imgs[i].height;
+      var context = canvas.getContext('2d');
+      context.drawImage(imgs[0], 0, 0);
+      data.images[i] = canvas.toDataURL();
     }
     else {
       data.images[i] = null;
@@ -942,14 +955,10 @@ function loadLevel(level_name) {
   objects = parsed.objects;
   var images = parsed.images || [];
   for (var i = 0; i < 10; i++) {
-    if (images[i]) {
-      imgs[i] = ctx.createImageData(block_size, block_size);
-      for (var j = 0; j < images[i].length; j++)
-        imgs[i].data[j] = images[i][j];
-    }
-    else {
+    if (images[i])
+      loadImage(i, images[i]);
+    else
       imgs[i] = null;
-    }
   }
 
   restart();
