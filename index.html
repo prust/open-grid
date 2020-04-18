@@ -54,15 +54,6 @@ body {
   color: #666;
   padding: 5px;
 }
-#properties.left {
-  left: 0;
-}
-#properties.right {
-  right: 0;
-}
-#properties.faded {
-  opacity: 0.5;
-}
 #properties td {
   vertical-align: top
 }
@@ -90,8 +81,12 @@ textarea {
     <li>restart()</li>
     <li>loadLevel(level_name)</li>
   </ul><br>
-  <input type="checkbox" id="is-solid"> Solid <button id="edit-img">Edit Image</button><br>
+  <input type="checkbox" id="is-solid"> Solid<br>
+  <button id="edit-img">Edit Image</button><br>
+  <label for="update-img">Update Tileset:</label>
+  <input type="file" id="update-img"><br>
 <textarea id="code"></textarea>
+<canvas id="tileset"></canvas>
 </div>
 <div id="header">
   <div id="cur_color"></div><div id="fullscreen" class="fa fa-arrows-alt"></div>
@@ -149,20 +144,6 @@ function setupViewport() {
   // whenever we mess with the canvas width/height, we need to reset the transform
   viewport.updateTransform();
 }
-
-$('properties').addEventListener('mouseover', function() {
-  var prop_panel = $('properties');
-  if (hasClass(prop_panel, 'faded')) {
-    if (hasClass(prop_panel, 'left')) {
-      removeClass(prop_panel, 'left');
-      addClass(prop_panel, 'right');
-    }
-    else {
-      removeClass(prop_panel, 'right');
-      addClass(prop_panel, 'left');
-    }
-  }
-});
 
 $('fullscreen').addEventListener('click', function() {
   var body = document.body;
@@ -231,7 +212,7 @@ GameEditor.prototype.onMouseMove = function(evt) {
 
 // load & save
 GameEditor.prototype.onKeyPress = function(evt) {
-  if (document.activeElement && document.activeElement == document.getElementById('code'))
+  if (document.activeElement && document.activeElement == $('code'))
     return;
   
   if (evt.keyCode == 's'.charCodeAt(0))
@@ -264,7 +245,7 @@ GameEditor.prototype.onKeyPress = function(evt) {
 
 GameEditor.prototype.setColor = function(color_ix) {
   current_color_ix = color_ix;
-  document.getElementById('cur_color').style.backgroundColor = colors[color_ix];
+  $('cur_color').style.backgroundColor = colors[color_ix];
   if (selected_block) {
     selected_block.type = current_color_ix;
     updateProperties(selected_block);
@@ -282,7 +263,9 @@ var MAX_VEL = 100;
 var grid_width = 100;
 var grid_height = 100;
 var objects = [];
-var block_size = 40;
+var block_size = 16;
+var num_tiles_w = 0;
+var num_tiles_h = 0;
 var selected_block = null;
 var current_color_ix = 1;
 var img_editor = null;
@@ -306,7 +289,7 @@ var colors = [
   '#f2de70' // yellow
 ];
 
-var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 1};
+var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 0};
 createBlock(0, 8 * block_size);
 
 var game_editor = new GameEditor(ctx);
@@ -330,18 +313,16 @@ function createBlock(x, y) {
 function selectBlock(obj) {
   selected_block = obj;
   updateProperties(obj);
-  removeClass($('properties'), 'faded');
 }
 
 function deselectBlock() {
   selected_block = null;
-  addClass($('properties'), 'faded');
 }
 
 function updateProperties(obj) {
-  document.getElementById('is-solid').checked = obj.is_solid;
-  document.getElementById('code').value = obj.code || '';
-  document.getElementById('edit-img').textContent = 'Edit Image ' + obj.type;
+  $('is-solid').checked = obj.is_solid;
+  $('code').value = obj.code || '';
+  $('edit-img').textContent = 'Edit Image ' + obj.type;
 }
 
 requestAnimationFrame(draw);
@@ -357,10 +338,10 @@ function draw() {
     // draw blocks on the grid
     for (var i = 0; i < objects.length; i++) {
       var obj = objects[i];
-      if (imgs[obj.type]) {
-        // the transformation matrix doesn't affect putImageData()
-        // so we have to transform manually
-        ctx.putImageData(imgs[obj.type], obj.x - viewport.transform_x, obj.y - viewport.transform_y);
+      if (imgs[0]) {
+        var src_x = obj.type % num_tiles_w;
+        var src_y = Math.floor(obj.type / num_tiles_w);
+        ctx.drawImage(imgs[0], src_x * block_size, src_y * block_size, block_size, block_size, obj.x, obj.y, block_size, block_size);
       }
       else {
         ctx.fillStyle = colors[obj.type];
@@ -370,8 +351,8 @@ function draw() {
 
     // draw selection
     if (selected_block) {
-      ctx.strokeStyle = '#6666FF';
-      ctx.lineWidth=5;
+      ctx.strokeStyle = '#3B88FD';
+      ctx.lineWidth=2;
       ctx.strokeRect(selected_block.x, selected_block.y, selected_block.w, selected_block.h);
     }
 
@@ -504,7 +485,7 @@ function getIntersection(rect1, rect2) {
   return {x1: x1, y1: y1, x2: x2, y2: y2};
 }
 
-document.getElementById('code').addEventListener('keypress', function(evt) {
+$('code').addEventListener('keypress', function(evt) {
   var block = selected_block;
   setTimeout(function() {
     if (block)
@@ -512,15 +493,88 @@ document.getElementById('code').addEventListener('keypress', function(evt) {
   }, 0);
 });
 
-document.getElementById('is-solid').addEventListener('change', function(evt) {
+$('is-solid').addEventListener('change', function(evt) {
   if (selected_block)
     selected_block.is_solid = !!evt.target.checked;
 });
 
-document.getElementById('edit-img').addEventListener('click', function() {
+$('edit-img').addEventListener('click', function() {
   if (selected_block)
     edit(selected_block.type);
 });
+
+$('tileset').addEventListener('click', function(evt) {
+  // if we make the tileset map scrollable, we may need to use pageX
+  var x = evt.clientX - getClientLeft(evt.target);
+  var y = evt.clientY - getClientTop(evt.target);
+  x = Math.floor(x / block_size);
+  y = Math.floor(y / block_size);
+  current_color_ix = x + y * num_tiles_w;
+  renderTileset();
+});
+
+function getClientLeft(el) {
+  var offset = 0;
+
+  while (el) {
+    offset += parseInt(el.offsetLeft);
+    el = el.offsetParent;         
+  }
+  return offset;
+}
+
+function getClientTop(el) {
+  var offset = 0;
+
+  while (el) {
+    offset += parseInt(el.offsetTop);
+    el = el.offsetParent;         
+  }
+  return offset;
+}
+
+$("update-img").addEventListener("change", function() {
+  if (!selected_block)
+    return;
+
+  // load file into image object
+  var file = this.files[0];
+  var url = URL.createObjectURL(file);
+  var img = new Image();
+  
+  img.onload = function() {
+    URL.revokeObjectURL(this.src); // free mem held by Object URL
+
+    var misaligned_dimensions = [];
+    if (img.width % block_size)
+      misaligned_dimensions.push(`width (${img.width})`);
+    if (img.height % block_size)
+      misaligned_dimensions.push(`height (${img.height})`)
+    if (misaligned_dimensions.length)
+      alert(`Warning: tileset image ${misaligned_dimensions.join(', ')} does not align with tile size (${block_size})`);
+
+    num_tiles_w = Math.ceil(img.width / block_size);
+    num_tiles_h = Math.ceil(img.height / block_size);
+    imgs[0] = img; // ctx.getImageData(x * block_size, y * block_size, block_size, block_size);
+    $('tileset').setAttribute('width', img.width);
+    $('tileset').setAttribute('height', img.height);
+    renderTileset();
+  };
+
+  img.src = url;
+});
+
+function renderTileset() {
+  var tileset_ctx = $('tileset').getContext('2d');
+  tileset_ctx.drawImage(imgs[0], 0, 0);
+
+  // outline currently selected tile in tileset
+  var x = current_color_ix % num_tiles_w;
+  var y = Math.floor(current_color_ix / num_tiles_w);
+  tileset_ctx.strokeStyle = '#3B88FD';
+  tileset_ctx.lineWidth = 2;
+  tileset_ctx.strokeRect(x * block_size, y * block_size, block_size, block_size);
+}
 
 var LEFT = 37;
 var UP = 38;
@@ -529,7 +583,7 @@ var DOWN = 40;
 var DEL = 8;
 var ESC = 27;
 document.addEventListener('keydown', function(evt) {
-  if (document.activeElement && document.activeElement == document.getElementById('code'))
+  if (document.activeElement && document.activeElement == $('code'))
     return;
 
   if (evt.keyCode == LEFT && player.accel_y != 0)
@@ -780,7 +834,7 @@ ImageEditor.prototype.setColor = function(color_ix) {
 
 ImageEditor.prototype.updateColorIndicator = function() {
   var rgb = ImageEditor.rgb[this.color_ix];
-  document.getElementById('cur_color').style.backgroundColor = 'rgb(' + rgb[0] + ', ' + rgb[1] + ', ' + rgb[2] + ')';
+  $('cur_color').style.backgroundColor = 'rgb(' + rgb[0] + ', ' + rgb[1] + ', ' + rgb[2] + ')';
 };
 
 ImageEditor.prototype.fill = function(color_ix) {
@@ -826,7 +880,7 @@ function setGravity(x, y) {
   if (x != null)
     player.accel_x = x;
   if (y != null)
-  player.accel_y = y;
+    player.accel_y = y;
 }
 
 function setSpeed(x, y) {
@@ -856,7 +910,7 @@ function restart() {
   player.vel_y = 0;
   player.vel_x = 0;
   player.accel_x = 0;
-  player.accel_y = 1;
+  player.accel_y = 0;
 }
 
 function loadLevel(level_name) {
