@@ -65,6 +65,12 @@ textarea {
   width: 195px;
   height: 80px;
 }
+canvas {
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-crisp-edges;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
 </style>
 <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
 </head>
@@ -82,7 +88,7 @@ textarea {
     <li>loadLevel(level_name)</li>
   </ul><br>
   <input type="checkbox" id="is-solid"> Solid<br>
-  <button id="edit-img">Edit Image</button><br>
+  <!--button id="edit-img">Edit Image</button><br-->
   <label for="update-img">Update Tileset:</label>
   <input type="file" id="update-img"><br>
 <textarea id="code"></textarea>
@@ -92,6 +98,22 @@ textarea {
   <div id="cur_color"></div><div id="fullscreen" class="fa fa-arrows-alt"></div>
 </div>
 <script>
+var MAX_VEL = 50;
+
+var grid_width = 100;
+var grid_height = 100;
+var objects = [];
+var block_size = 16;
+var num_tiles_w = 0;
+var num_tiles_h = 0;
+var selected_block = null;
+var current_color_ix = 1;
+var img_editor = null;
+var start_x = 0;
+var start_y = 0;
+var imgs = [];
+var zoom = 2;
+
 function Viewport(width, height) {
   this.width = width;
   this.height = height;
@@ -123,7 +145,11 @@ Viewport.prototype.follow = function(pos) {
 };
 
 Viewport.prototype.updateTransform = function() {
-  ctx.setTransform(1, 0, 0, 1, -this.transform_x, -this.transform_y);
+  ctx.imageSmoothingEnabled = false;
+  ctx.mozImageSmoothingEnabled = false;
+  ctx.webkitImageSmoothingEnabled = false;
+  ctx.msImageSmoothingEnabled = false;
+  ctx.setTransform(zoom, 0, 0, zoom, -this.transform_x, -this.transform_y);
 };
 
 document.body.style.overflow = 'hidden';
@@ -136,10 +162,14 @@ setupViewport();
 window.addEventListener('resize', setupViewport);
 
 function setupViewport() {
-  viewport.width = window.innerWidth || document.body.clientWidth;
-  viewport.height = window.innerHeight || document.body.clientHeight;
-  canvas.setAttribute('width', viewport.width);
-  canvas.setAttribute('height', viewport.height);
+  //var scale = window.devicePixelRatio; // force to 1 for blurry canvas on retina
+// canvas.width = document.body.clientWidth * scale;
+// canvas.height = document.body.clientHeight * scale;
+
+  viewport.width = Math.ceil(window.innerWidth / zoom);
+  viewport.height = Math.ceil(window.innerHeight / zoom);
+  canvas.width = window.innerWidth * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
 
   // whenever we mess with the canvas width/height, we need to reset the transform
   viewport.updateTransform();
@@ -168,8 +198,8 @@ function GameEditor(ctx) {
 
 GameEditor.prototype.onMouseDown = function(evt) {
   var pt = {
-    x: evt.pageX + viewport.transform_x,
-    y: evt.pageY + viewport.transform_y
+    x: (evt.pageX + viewport.transform_x) / zoom,
+    y: (evt.pageY + viewport.transform_y) / zoom
   };
 
   var obj_under_mouse;
@@ -196,8 +226,8 @@ GameEditor.prototype.onMouseMove = function(evt) {
     return;
 
   var pt = {
-    x: evt.pageX + viewport.transform_x,
-    y: evt.pageY + viewport.transform_y
+    x: (evt.pageX + viewport.transform_x) / zoom,
+    y: (evt.pageY + viewport.transform_y) / zoom
   };
   var obj_under_mouse;
   for (var i = 0; i < objects.length; i++) {
@@ -258,21 +288,6 @@ GameEditor.prototype.destroy = function() {
   document.removeEventListener('keypress', this.onKeyPress);
 };
 
-var MAX_VEL = 100;
-
-var grid_width = 100;
-var grid_height = 100;
-var objects = [];
-var block_size = 16;
-var num_tiles_w = 0;
-var num_tiles_h = 0;
-var selected_block = null;
-var current_color_ix = 1;
-var img_editor = null;
-var start_x = 0;
-var start_y = 0;
-var imgs = [];
-
 // i thought these colors were taken from a DB16 palette
 // but they weren't, they're from another "DawnBringer" palette here:
 // http://pixeljoint.com/forum/forum_posts.asp?TID=22582
@@ -322,12 +337,17 @@ function deselectBlock() {
 function updateProperties(obj) {
   $('is-solid').checked = obj.is_solid;
   $('code').value = obj.code || '';
-  $('edit-img').textContent = 'Edit Image ' + obj.type;
+  // $('edit-img').textContent = 'Edit Image ' + obj.type;
 }
 
 requestAnimationFrame(draw);
 function draw() {
-  ctx.clearRect(viewport.transform_x, viewport.transform_y, viewport.width, viewport.height);
+  // temporarily remove transforms in order to clear the right rect
+  ctx.save();
+  
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  ctx.restore();
   
   if (img_editor) {
     img_editor.draw();
@@ -357,11 +377,11 @@ function draw() {
     }
 
     // draw player
-    ctx.beginPath();
-    var radius = block_size / 2;
-    ctx.arc(Math.floor(player.x) + radius, Math.floor(player.y) + radius, radius, 0, 2 * Math.PI, false);
-    ctx.fillStyle = '#5b99f4';
-    ctx.fill();
+    // ctx.beginPath();
+    // var radius = block_size / 2;
+    // ctx.arc(Math.floor(player.x) + radius, Math.floor(player.y) + radius, radius, 0, 2 * Math.PI, false);
+    // ctx.fillStyle = '#5b99f4';
+    // ctx.fill();
   }
   requestAnimationFrame(draw);
 }
@@ -498,10 +518,10 @@ $('is-solid').addEventListener('change', function(evt) {
     selected_block.is_solid = !!evt.target.checked;
 });
 
-$('edit-img').addEventListener('click', function() {
-  if (selected_block)
-    edit(selected_block.type);
-});
+// $('edit-img').addEventListener('click', function() {
+//   if (selected_block)
+//     edit(selected_block.type);
+// });
 
 $('tileset').addEventListener('click', function(evt) {
   // if we make the tileset map scrollable, we may need to use pageX
@@ -566,6 +586,7 @@ $("update-img").addEventListener("change", function() {
 
 function renderTileset() {
   var tileset_ctx = $('tileset').getContext('2d');
+  tileset_ctx.imageSmoothingEnabled = false;
   tileset_ctx.drawImage(imgs[0], 0, 0);
 
   // outline currently selected tile in tileset
@@ -613,13 +634,13 @@ document.addEventListener('keydown', function(evt) {
   }
 });
 
-function edit(img_ix) {
-  if (!img_editor) {
-    deselectBlock();
-    img_editor = new ImageEditor(ctx, img_ix);
-    game_editor.destroy();
-  }
-}
+// function edit(img_ix) {
+//   if (!img_editor) {
+//     deselectBlock();
+//     img_editor = new ImageEditor(ctx, img_ix);
+//     game_editor.destroy();
+//   }
+// }
 
 function save() {
   var name = prompt('What would you like to name this level?');
@@ -684,7 +705,7 @@ function removeClass(el, class_name) {
   el.className = class_names.join(' ');
 }
 
-function ImageEditor(ctx, img_ix) {
+/*function ImageEditor(ctx, img_ix) {
   this.color_ix = 0;
   this.img_ix = img_ix;
   this.px_size = 15;
@@ -704,7 +725,7 @@ function ImageEditor(ctx, img_ix) {
   this.ctx = ctx;
 
   // reset the transform from the game's viewport
-  this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+  this.ctx.setTransform(zoom, 0, 0, zoom, 0, 0);
 
   this.updateColorIndicator();
 
@@ -873,7 +894,7 @@ ImageEditor.prototype.destroy = function() {
   document.removeEventListener('keypress', this.onKeyPress);
   document.removeEventListener('mousedown', this.onMouseDown);
   document.removeEventListener('mousemove', this.onMouseMove);
-};
+};*/
 
 // public API functions (available to the game designer)
 function setGravity(x, y) {
