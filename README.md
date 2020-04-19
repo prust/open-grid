@@ -27,5 +27,7 @@ API:
 * loadGame(game_name)
 * restart()
 * loadLevel(level_num)
-* createTile(grid_x, grid_y, tile_ix, spritesheet_ix)
+* createTile(grid_x, grid_y, sprite_x, sprite_y[, spritesheet_ix])
+* getTile(grid_x, grid_y)
 * fireEvent(obj, evt_name)
+* await timeout(seconds)

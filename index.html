@@ -253,7 +253,7 @@ GameEditor.prototype.onMouseDown = function(evt) {
     }
   }
   else {
-    var obj = createTile(pxToGrid(pt.x), pxToGrid(pt.y), img_ix, curr_sprite_x, curr_sprite_y);
+    var obj = createTile(pxToGrid(pt.x), pxToGrid(pt.y), curr_sprite_x, curr_sprite_y, img_ix);
     selectBlock(obj);
   }
 };
@@ -281,7 +281,7 @@ GameEditor.prototype.onMouseMove = function(evt) {
   }
   
   if (!obj_under_mouse) {
-    var obj = createTile(grid_x, grid_y, img_ix, curr_sprite_x, curr_sprite_y);
+    var obj = createTile(grid_x, grid_y, curr_sprite_x, curr_sprite_y, img_ix);
     selectBlock(obj);
   }
   else {
@@ -322,7 +322,7 @@ var colors = [
   '#f2de70' // yellow
 ];
 
-selectBlock(createTile(0, 8, img_ix, curr_sprite_x, curr_sprite_y));
+selectBlock(createTile(0, 8, curr_sprite_x, curr_sprite_y, img_ix));
 
 var game_editor = new GameEditor(ctx);
 
@@ -360,7 +360,11 @@ function updateProperties() {
   setSelectOptions($('event'), opts);
 
   var obj = selected_block || level;
-  $('code').value = obj['on_' + $('event').value] || '';
+  var evt_handler_name = 'on_' + $('event').value;
+  var evt_handler = obj[evt_handler_name];
+  if (typeof(evt_handler) == 'function')
+    evt_handler = getAsyncFnBody(evt_handler, evt_handler_name);
+  $('code').value = evt_handler || '';
   // $('edit-img').textContent = 'Edit Image ' + /*obj.type*/;
 }
 
@@ -714,6 +718,15 @@ document.addEventListener('keydown', function(evt) {
 function save() {
   var name = prompt('What would you like to name this game?');
   var data = {images: [], levels: levels};
+
+  // serialize functions back to strings manually
+  // otherwise they get wrapped in 'async function() { ... }'
+  for (var level of levels) {
+    serializeEvtHandlers(level);
+
+    for (var obj of level.objects)
+      serializeEvtHandlers(obj);
+  }
   
   // serialize image pixel data
   for (var i = 0; i < imgs.length; i++) {
@@ -730,6 +743,21 @@ function save() {
     }
   }
   localStorage.setItem(name, JSON.stringify(data));
+}
+
+function serializeEvtHandlers(obj) {
+  for (var prop in obj)
+    if (prop.startsWith('on_') && typeof(obj[prop]) == 'function')
+      obj[prop] = getAsyncFnBody(obj[prop], prop);
+}
+
+function getAsyncFnBody(fn, name) {
+  var fn_str = fn.toString();
+  var fn_body = fn_str.match(/async function[^{]+\{([\s\S]*)\}$/)[1];
+  if (fn_body.length == fn_str.length)
+    throw new Error(`getAsyncFnBody() unable to extract body of function ${name}`);
+
+  return fn_body.trim();
 }
 
 function load() {
@@ -1035,9 +1063,14 @@ function loadLevel(level_n) {
   player.accel_y = 0;
 
   fireEvent(level, 'start');
+  for (var obj of objects)
+    fireEvent(obj, 'create');
 }
 
-function createTile(grid_x, grid_y, img_ix, sprite_x, sprite_y) {
+function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix) {
+  if (spritesheet_ix == null)
+    spritesheet_ix = 0;
+
   x = grid_x * block_size;
   y = grid_y * block_size;
   var obj = {
@@ -1049,14 +1082,20 @@ function createTile(grid_x, grid_y, img_ix, sprite_x, sprite_y) {
     h: block_size,
     sprite_x: sprite_x,
     sprite_y: sprite_y,
-    img_ix: img_ix,
+    img_ix: spritesheet_ix,
     is_solid: true
   };
 
   objects.push(obj);
+  fireEvent(obj, 'create');
   return obj;
 }
 
+function getTile(grid_x, grid_y) {
+  return objects.find(obj => obj.grid_x == grid_x && obj.grid_y == grid_y);
+}
+
+const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
 function fireEvent(obj, evt_name) {
   var handler_name = 'on_' + evt_name;
   if (!obj[handler_name])
@@ -1064,7 +1103,7 @@ function fireEvent(obj, evt_name) {
 
   try {
     if (typeof(obj[handler_name]) != 'function')
-      obj[handler_name] = new Function(obj[handler_name]);
+      obj[handler_name] = new AsyncFunction(obj[handler_name]);
 
   obj[handler_name]();
   }
@@ -1081,6 +1120,12 @@ function fireEvent(obj, evt_name) {
     if (selected_block && selected_block == obj)
       updateProperties(obj);
   }
+}
+
+async function timeout(seconds) {
+  return new Promise(function(resolve, reject) {
+    setTimeout(resolve, seconds * 1000);
+  });
 }
 
 </script>
