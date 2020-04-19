@@ -56,26 +56,34 @@ body {
   right: 40px;
 }
 
-#properties {
+#sidebar {
   position: absolute;
   z-index: 100;
   top: 37px;
   bottom: 0;
-  width: 200px;
+  width: 250px;
   background-color: #eee;
   color: #666;
-  padding: 5px;
+  padding: 10px;
 }
-#properties td {
+#sidebar td {
   vertical-align: top
 }
-ul {
-  margin: 0;
-  padding-left: 20px;
+#sidebar h3 {
+  margin: 10px 0;
 }
-textarea {
-  width: 195px;
+#sidebar table {
+  width: 100%;
+}
+#sidebar input {
+  width: 98%;
+}
+#sidebar textarea {
+  width: 98%;
   height: 80px;
+}
+#sidebar input[type=text], #sidebar textarea {
+  border: 1px solid #dddddd
 }
 canvas {
   image-rendering: -moz-crisp-edges;
@@ -89,16 +97,30 @@ canvas {
 <body>
 <canvas id="canvas">
 </canvas>
-<div id="properties" style="right: 0px">
+<div id="sidebar" style="right: 0px">
   <h3 id="properties_heading"></h3>
-  <div id="object_properties">
-    <input type="checkbox" id="is-solid"> <label for="is-solid">Solid</label>
-  </div><br>
+  <table id="properties">
+    <tr class="object_properties">
+      <td><label for="obj_id">ID:</label></td>
+      <td><input id="obj_id" type="text"></td>
+    </tr>
+    <tr class="object_properties">
+      <td><label for="obj_types">Types:</label></td>
+      <td><input id="obj_types" type="text"></td>
+    </tr>
+    <tr class="object_properties">
+      <td><label for="is-solid">Solid:</label></td>
+      <td><input type="checkbox" id="is-solid"></td>
+    </tr>
+    <tr>
+      <td><label for="event">Code:</label></td>
+      <td><select id="event"></select></td>
+    </tr>
+    <tr>
+      <td colspan="2"><textarea id="code"></textarea></td>
+    </tr>
+  </table>
   <!--button id="edit-img">Edit Image</button><br-->
-
-  Code:
-  <select id="event"></select>
-  <textarea id="code"></textarea>
 
   <h3>Spritesheets</h3>
   <label for="add-img">Add Spritesheet:</label>
@@ -353,7 +375,8 @@ function updateProperties() {
     $('properties_heading').innerText = 'Level Properties';
   }
 
-  $('object_properties').style.display = selected_block ? 'block' : 'none';
+  for (var tr of $$('object_properties'))
+    tr.style.display = selected_block ? '' : 'none';
   
   var evts = events[selected_block ? 'tile' : 'level'];
   var opts = evts.map(name => [`On ${name}`, name.toLowerCase()]);
@@ -529,8 +552,13 @@ function pxToGrid(px) {
 $('code').addEventListener('blur', onBlur);
 $('code').addEventListener('change', onBlur);
 function onBlur(evt) {
-  setTimeout(saveCode, 0);
+  saveCode();
 }
+
+$('obj_id').addEventListener('blur', onTextInputChange);
+$('obj_id').addEventListener('change', onTextInputChange);
+$('obj_types').addEventListener('blur', onTextInputChange);
+$('obj_types').addEventListener('change', onTextInputChange);
 
 function saveCode() {
   var block = selected_block;
@@ -542,6 +570,18 @@ function saveCode() {
     block['on_' + evt_name] = $('code').value;
   else
     level['on_' + evt_name] = $('code').value;
+}
+
+function onTextInputChange(evt) {
+  var prop = evt.target.id.replace('obj_', '');
+  var val = evt.target.value;
+  if (prop == 'types')
+    val = val.split(',').map(str => str.trim());
+
+  if (selected_block)
+    selected_block[prop] = val;
+  else
+    throw new Error('text input change called without a selected object');
 }
 
 $('is-solid').addEventListener('change', function(evt) {
@@ -677,7 +717,7 @@ var DOWN = 40;
 var DEL = 8;
 var ESC = 27;
 document.addEventListener('keydown', function(evt) {
-  if (document.activeElement && document.activeElement == $('code'))
+  if (document.activeElement && (document.activeElement.tagName == 'TEXTAREA' || document.activeElement.tagName == 'INPUT'))
     return;
 
   if (evt.keyCode == LEFT && player.accel_y != 0)
@@ -779,6 +819,9 @@ function jump() {
 // DOM helpers
 function $(id) {
   return document.getElementById(id);
+}
+function $$(class_name) {
+  return document.getElementsByClassName(class_name);
 }
 
 function hasClass(el, class_name) {
