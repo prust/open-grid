@@ -105,7 +105,7 @@ canvas {
   <input type="file" id="add-img"><br><br>
   <select id="tilesets" style="display: none"></select><br><br>
   <canvas id="tileset"></canvas><br><br>
-  <label id="update-img-label" for="update-img" style="display: none">Replace Image:</label>
+  <label id="update-img-label" for="update-img" style="display: none">Replace Spritesheet Image:</label>
   <input type="file" id="update-img" style="display: none">
 </div>
 <div id="header">
@@ -121,7 +121,8 @@ var block_size = 16;
 var num_tiles_w = 0;
 var num_tiles_h = 0;
 var selected_block = null;
-var current_color_ix = 1;
+var curr_sprite_x = 0;
+var curr_sprite_y = 0;
 var img_editor = null;
 var start_x = 0;
 var start_y = 0;
@@ -245,15 +246,14 @@ GameEditor.prototype.onMouseDown = function(evt) {
       deselectBlock();
     }
     else {
-      if (obj_under_mouse.type != current_color_ix) {
-        obj_under_mouse.type = current_color_ix;
-        obj_under_mouse.img_ix = img_ix;
-      }
+      obj_under_mouse.img_ix = img_ix;
+      obj_under_mouse.sprite_x = curr_sprite_x;
+      obj_under_mouse.sprite_y = curr_sprite_y;
       selectBlock(obj_under_mouse);
     }
   }
   else {
-    var obj = createTile(pxToGrid(pt.x), pxToGrid(pt.y), current_color_ix, img_ix);
+    var obj = createTile(pxToGrid(pt.x), pxToGrid(pt.y), img_ix, curr_sprite_x, curr_sprite_y);
     selectBlock(obj);
   }
 };
@@ -281,12 +281,13 @@ GameEditor.prototype.onMouseMove = function(evt) {
   }
   
   if (!obj_under_mouse) {
-    var obj = createTile(grid_x, grid_y, current_color_ix, img_ix);
+    var obj = createTile(grid_x, grid_y, img_ix, curr_sprite_x, curr_sprite_y);
     selectBlock(obj);
   }
   else {
-    obj_under_mouse.type = current_color_ix;
     obj_under_mouse.img_ix = img_ix;
+    obj_under_mouse.sprite_x = curr_sprite_x;
+    obj_under_mouse.sprite_y = curr_sprite_y;
   }
 };
 
@@ -321,7 +322,7 @@ var colors = [
   '#f2de70' // yellow
 ];
 
-selectBlock(createTile(0, 8, current_color_ix, img_ix));
+selectBlock(createTile(0, 8, img_ix, curr_sprite_x, curr_sprite_y));
 
 var game_editor = new GameEditor(ctx);
 
@@ -360,7 +361,7 @@ function updateProperties() {
 
   var obj = selected_block || level;
   $('code').value = obj['on_' + $('event').value] || '';
-  // $('edit-img').textContent = 'Edit Image ' + obj.type;
+  // $('edit-img').textContent = 'Edit Image ' + /*obj.type*/;
 }
 
 function setSelectOptions(sel, options) {
@@ -395,15 +396,8 @@ function draw() {
     // draw blocks on the grid
     for (var i = 0; i < objects.length; i++) {
       var obj = objects[i];
-      if (imgs[obj.img_ix]) {
-        var src_x = obj.type % num_tiles_w;
-        var src_y = Math.floor(obj.type / num_tiles_w);
-        ctx.drawImage(imgs[obj.img_ix], src_x * block_size, src_y * block_size, block_size, block_size, obj.x, obj.y, block_size, block_size);
-      }
-      else {
-        ctx.fillStyle = colors[obj.type];
-        ctx.fillRect(obj.x, obj.y, obj.w, obj.h);
-      }
+      if (imgs[obj.img_ix])
+        ctx.drawImage(imgs[obj.img_ix], obj.sprite_x * block_size, obj.sprite_y * block_size, block_size, block_size, obj.x, obj.y, block_size, block_size);
     }
 
     // draw selection
@@ -553,7 +547,7 @@ $('is-solid').addEventListener('change', function(evt) {
 
 // $('edit-img').addEventListener('click', function() {
 //   if (selected_block)
-//     edit(selected_block.type);
+//     edit(/*selected_block.type*/);
 // });
 
 $('tilesets').addEventListener('change', function(evt) {
@@ -568,9 +562,8 @@ $('tileset').addEventListener('click', function(evt) {
   // if we make the tileset map scrollable, we may need to use pageX
   var x = evt.clientX - getClientLeft(evt.target);
   var y = evt.clientY - getClientTop(evt.target);
-  x = pxToGrid(x);
-  y = pxToGrid(y);
-  current_color_ix = x + y * num_tiles_w;
+  curr_sprite_x = pxToGrid(x);
+  curr_sprite_y = pxToGrid(y);
   renderTileset();
 });
 
@@ -668,11 +661,9 @@ function renderTileset() {
   tileset_ctx.drawImage(imgs[img_ix], 0, 0);
 
   // outline currently selected tile in tileset
-  var x = current_color_ix % num_tiles_w;
-  var y = Math.floor(current_color_ix / num_tiles_w);
   tileset_ctx.strokeStyle = '#3B88FD';
   tileset_ctx.lineWidth = 2;
-  tileset_ctx.strokeRect(x * block_size, y * block_size, block_size, block_size);
+  tileset_ctx.strokeRect(curr_sprite_x * block_size, curr_sprite_y * block_size, block_size, block_size);
 }
 
 var LEFT = 37;
@@ -1046,7 +1037,7 @@ function loadLevel(level_n) {
   fireEvent(level, 'start');
 }
 
-function createTile(grid_x, grid_y, ix, img_ix) {
+function createTile(grid_x, grid_y, img_ix, sprite_x, sprite_y) {
   x = grid_x * block_size;
   y = grid_y * block_size;
   var obj = {
@@ -1056,7 +1047,8 @@ function createTile(grid_x, grid_y, ix, img_ix) {
     y: y,
     w: block_size,
     h: block_size,
-    type: ix,
+    sprite_x: sprite_x,
+    sprite_y: sprite_y,
     img_ix: img_ix,
     is_solid: true
   };
