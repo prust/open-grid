@@ -36,6 +36,9 @@ body {
 #header .fa {
   position: absolute; font-size: 25px; color: #ccc; top: 6px;
 }
+#header #coords {
+  position: absolute; font-size: 25px; color: #ccc; top: 4px; right: 80px;
+}
 #header .fa:hover {
   color: #999;
   cursor: pointer;
@@ -95,7 +98,7 @@ canvas {
     <li>setPosition(x, y)</li>
     <li>setStart(x, y)</li>
     <li>restart()</li>
-    <li>loadLevel(level_name)</li>
+    <li>loadLevel(level_num)</li>
   </ul><br>
   <div id="object_properties">
     <input type="checkbox" id="is-solid"> <label for="is-solid">Solid</label>
@@ -110,7 +113,7 @@ canvas {
   <canvas id="tileset"></canvas>
 </div>
 <div id="header">
-  <div id="load" class="fa fa-folder-open-o"></div><div id="save" class="fa fa-floppy-o"></div>
+  <div id="load" class="fa fa-folder-open-o"></div><div id="save" class="fa fa-floppy-o"></div><div id="coords"></div>
   <!--div id="cur_color"></div--><div id="restart" class="fa fa-play-circle-o"></div><div id="fullscreen" class="fa fa-arrows-alt"></div>
 </div>
 <script>
@@ -118,7 +121,6 @@ var MAX_VEL = 50;
 
 var grid_width = 100;
 var grid_height = 100;
-var objects = [];
 var block_size = 16;
 var num_tiles_w = 0;
 var num_tiles_h = 0;
@@ -129,7 +131,12 @@ var start_x = 0;
 var start_y = 0;
 var imgs = [];
 var zoom = 2;
-var level = {};
+var levels = [{objects: []}];
+var level;
+var level_num;
+
+var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 0};
+loadLevel(1);
 var events = {
   level: ['Start'],
   tile: ['Create', 'Collide']
@@ -254,13 +261,19 @@ GameEditor.prototype.onMouseDown = function(evt) {
 
 var LEFT_BTN = 1;
 GameEditor.prototype.onMouseMove = function(evt) {
+  var pt_x = Math.floor((evt.pageX + viewport.transform_x) / zoom);
+  var pt_y = Math.floor((evt.pageY + viewport.transform_y) / zoom);
+  var grid_x = pxToGrid(pt_x);
+  var grid_y = pxToGrid(pt_y);
+  
+  var coords = grid_x + ', ' + grid_y;
+  if ($('coords').innerText != coords)
+    $('coords').innerText = coords;
+
   if (evt.buttons % 2 != LEFT_BTN)
     return;
 
-  var pt = {
-    x: Math.floor((evt.pageX + viewport.transform_x) / zoom),
-    y: Math.floor((evt.pageY + viewport.transform_y) / zoom)
-  };
+  var pt = {x: pt_x, y: pt_y};
   var obj_under_mouse;
   for (var i = 0; i < objects.length; i++) {
     var obj = objects[i];
@@ -269,11 +282,12 @@ GameEditor.prototype.onMouseMove = function(evt) {
   }
   
   if (!obj_under_mouse) {
-    var obj = createTile(pxToGrid(pt.x), pxToGrid(pt.y), current_color_ix);
+    var obj = createTile(grid_x, grid_y, current_color_ix);
     selectBlock(obj);
   }
-  else
+  else {
     obj_under_mouse.type = current_color_ix;
+  }
 };
 
 // load & save
@@ -307,19 +321,24 @@ var colors = [
   '#f2de70' // yellow
 ];
 
-var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 0};
 selectBlock(createTile(0, 8, current_color_ix));
 
 var game_editor = new GameEditor(ctx);
 
 function selectBlock(obj) {
-  saveCode();
+  // this runs before blur, save before updateProperties() blows the code away
+  if (document.activeElement.tagName == 'TEXTAREA')
+    saveCode();
+
   selected_block = obj;
   updateProperties(obj);
 }
 
 function deselectBlock() {
-  saveCode();
+  // this runs before blur, save before updateProperties() blows the code away
+  if (document.activeElement.tagName == 'TEXTAREA')
+    saveCode();
+
   selected_block = null;
   updateProperties();
 }
@@ -347,7 +366,7 @@ function updateProperties() {
   }
 
   var obj = selected_block || level;
-  $('code').value = obj[$('event').value] || '';
+  $('code').value = obj['on_' + $('event').value] || '';
   // $('edit-img').textContent = 'Edit Image ' + obj.type;
 }
 
@@ -466,31 +485,13 @@ function update() {
           player.vel_y = 0;
         }
       }
-      onCollide(obj);
+      fireEvent(obj, 'collide');
     }
   }
 
   if (player.vel_x || player.vel_y)
     viewport.follow(player);
-}
-
-function onCollide(obj) {
-  if (obj.collide) {
-    try {
-      eval(obj.collide);
-    }
-    catch(err) {
-      alert(err.message);
-      var lines = obj.collide.split('\n');
-      for (var i = 0; i < lines.length; i++)
-        lines[i] = '// ' + lines[i];
-
-      obj.collide = lines.join('\n');
-      if (selected_block && selected_block == obj)
-        updateProperties(obj);
-    }
-  }
-}
+}  
 
 function intersectsPoint(rect, pt) {
   return rect.x <= pt.x && rect.x + rect.w > pt.x &&
@@ -529,10 +530,13 @@ function onBlur(evt) {
 function saveCode() {
   var block = selected_block;
   var evt_name = $('event').value;
+  if (!evt_name)
+    throw new Error('saveCode() called when the event selector was not populated');
+
   if (block)
-    block[evt_name] = $('code').value;
+    block['on_' + evt_name] = $('code').value;
   else
-    level[evt_name] = $('code').value;
+    level['on_' + evt_name] = $('code').value;
 }
 
 $('is-solid').addEventListener('change', function(evt) {
@@ -676,8 +680,8 @@ document.addEventListener('keydown', function(evt) {
 // }
 
 function save() {
-  var name = prompt('What would you like to name this level?');
-  var data = {objects: objects, images: [], level: level};
+  var name = prompt('What would you like to name this game?');
+  var data = {images: [], levels: levels};
   
   // serialize image pixel data
   for (var i = 0; i < imgs.length; i++) {
@@ -697,8 +701,8 @@ function save() {
 }
 
 function load() {
-  var name = prompt('What level would you like to load?');
-  loadLevel(name);
+  var name = prompt('What game would you like to load?');
+  loadGame(name);
 }
 
 function jump() {
@@ -964,22 +968,13 @@ function setStart(x, y) {
     start_y = y * block_size;
 }
 
-function restart() {
-  player.x = start_x;
-  player.y = start_y;
-  player.vel_y = 0;
-  player.vel_x = 0;
-  player.accel_x = 0;
-  player.accel_y = 0;
-}
-
-function loadLevel(level_name) {
-  var json = localStorage.getItem(level_name);
+function loadGame(game_name) {
+  var json = localStorage.getItem(game_name);
   if (!json)
-    return alert('Sorry, no level with the name "' + level_name + '" exists.');
+    return alert('Sorry, no level with the name "' + game_name + '" exists.');
   var parsed = JSON.parse(json);
-  objects = parsed.objects;
-  level = parsed.level;
+  levels = parsed.levels;
+
   var images = parsed.images || [];
   for (var i = 0; i < 10; i++) {
     if (images[i])
@@ -988,13 +983,34 @@ function loadLevel(level_name) {
       imgs[i] = null;
   }
 
-  restart();
+  loadLevel(1);
 }
 
-function createTile(x, y, ix) {
-  x = x * block_size;
-  y = y * block_size;
+function restart() {
+  loadLevel(level_num);
+}
+
+function loadLevel(level_n) {
+  level_num = level_n;
+  level = levels[level_num - 1];
+  objects = level.objects;
+
+  player.x = start_x;
+  player.y = start_y;
+  player.vel_y = 0;
+  player.vel_x = 0;
+  player.accel_x = 0;
+  player.accel_y = 0;
+
+  fireEvent(level, 'start');
+}
+
+function createTile(grid_x, grid_y, ix) {
+  x = grid_x * block_size;
+  y = grid_y * block_size;
   var obj = {
+    grid_x: grid_x,
+    grid_y, grid_y,
     x: x,
     y: y,
     w: block_size,
@@ -1005,6 +1021,32 @@ function createTile(x, y, ix) {
 
   objects.push(obj);
   return obj;
+}
+
+function fireEvent(obj, evt_name) {
+  var handler_name = 'on_' + evt_name;
+  if (!obj[handler_name])
+    return;
+
+  try {
+    if (typeof(obj[handler_name]) != 'function')
+      obj[handler_name] = new Function(obj[handler_name]);
+
+  obj[handler_name]();
+  }
+  catch(err) {
+    alert(err.message);
+
+    // comment out the code that just failed
+    var lines = obj[handler_name].split('\n');
+    for (var i = 0; i < lines.length; i++)
+      lines[i] = '// ' + lines[i];
+
+    obj[handler_name] = lines.join('\n');
+
+    if (selected_block && selected_block == obj)
+      updateProperties(obj);
+  }
 }
 
 </script>
