@@ -91,26 +91,22 @@ canvas {
 </canvas>
 <div id="properties" style="right: 0px">
   <h3 id="properties_heading"></h3>
-  API:
-  <ul>
-    <li>setGravity(x, y)</li>
-    <li>setSpeed(x, y)</li>
-    <li>setPosition(x, y)</li>
-    <li>setStart(x, y)</li>
-    <li>restart()</li>
-    <li>loadLevel(level_num)</li>
-  </ul><br>
   <div id="object_properties">
     <input type="checkbox" id="is-solid"> <label for="is-solid">Solid</label>
   </div><br>
   <!--button id="edit-img">Edit Image</button><br-->
-  <label for="update-img">Update Tileset:</label>
-  <input type="file" id="update-img"><br><br>
 
   Code:
   <select id="event"></select>
   <textarea id="code"></textarea>
-  <canvas id="tileset"></canvas>
+
+  <h3>Spritesheets</h3>
+  <label for="add-img">Add Spritesheet:</label>
+  <input type="file" id="add-img"><br><br>
+  <select id="tilesets" style="display: none"></select><br><br>
+  <canvas id="tileset"></canvas><br><br>
+  <label id="update-img-label" for="update-img" style="display: none">Replace Image:</label>
+  <input type="file" id="update-img" style="display: none">
 </div>
 <div id="header">
   <div id="load" class="fa fa-folder-open-o"></div><div id="save" class="fa fa-floppy-o"></div><div id="coords"></div>
@@ -130,9 +126,10 @@ var img_editor = null;
 var start_x = 0;
 var start_y = 0;
 var imgs = [];
+var img_ix = null;
 var zoom = 2;
 var levels = [{objects: []}];
-var level;
+var level = null;
 var level_num;
 
 var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 0};
@@ -248,13 +245,15 @@ GameEditor.prototype.onMouseDown = function(evt) {
       deselectBlock();
     }
     else {
-      if (obj_under_mouse.type != current_color_ix)
+      if (obj_under_mouse.type != current_color_ix) {
         obj_under_mouse.type = current_color_ix;
+        obj_under_mouse.img_ix = img_ix;
+      }
       selectBlock(obj_under_mouse);
     }
   }
   else {
-    var obj = createTile(pxToGrid(pt.x), pxToGrid(pt.y), current_color_ix);
+    var obj = createTile(pxToGrid(pt.x), pxToGrid(pt.y), current_color_ix, img_ix);
     selectBlock(obj);
   }
 };
@@ -282,11 +281,12 @@ GameEditor.prototype.onMouseMove = function(evt) {
   }
   
   if (!obj_under_mouse) {
-    var obj = createTile(grid_x, grid_y, current_color_ix);
+    var obj = createTile(grid_x, grid_y, current_color_ix, img_ix);
     selectBlock(obj);
   }
   else {
     obj_under_mouse.type = current_color_ix;
+    obj_under_mouse.img_ix = img_ix;
   }
 };
 
@@ -321,7 +321,7 @@ var colors = [
   '#f2de70' // yellow
 ];
 
-selectBlock(createTile(0, 8, current_color_ix));
+selectBlock(createTile(0, 8, current_color_ix, img_ix));
 
 var game_editor = new GameEditor(ctx);
 
@@ -354,20 +354,27 @@ function updateProperties() {
 
   $('object_properties').style.display = selected_block ? 'block' : 'none';
   
-  while ($('event').options.length)
-    $('event').removeChild($('event').options[0]);
-
   var evts = events[selected_block ? 'tile' : 'level'];
-  for (var evt_name of evts) {
-    var opt = document.createElement('option');
-    opt.appendChild(document.createTextNode(`On ${evt_name}`));
-    opt.value = evt_name.toLowerCase();
-    $('event').appendChild(opt); 
-  }
+  var opts = evts.map(name => [`On ${name}`, name.toLowerCase()]);
+  setSelectOptions($('event'), opts);
 
   var obj = selected_block || level;
   $('code').value = obj['on_' + $('event').value] || '';
   // $('edit-img').textContent = 'Edit Image ' + obj.type;
+}
+
+function setSelectOptions(sel, options) {
+  // remove old options
+  while (sel.options.length)
+    sel.removeChild(sel.options[0]);
+
+  // add new options
+  for (var option of options) {
+    var opt = document.createElement('option');
+    opt.appendChild(document.createTextNode(option[0]));
+    opt.value = option[1];
+    sel.appendChild(opt); 
+  }
 }
 
 requestAnimationFrame(draw);
@@ -388,10 +395,10 @@ function draw() {
     // draw blocks on the grid
     for (var i = 0; i < objects.length; i++) {
       var obj = objects[i];
-      if (imgs[0]) {
+      if (imgs[obj.img_ix]) {
         var src_x = obj.type % num_tiles_w;
         var src_y = Math.floor(obj.type / num_tiles_w);
-        ctx.drawImage(imgs[0], src_x * block_size, src_y * block_size, block_size, block_size, obj.x, obj.y, block_size, block_size);
+        ctx.drawImage(imgs[obj.img_ix], src_x * block_size, src_y * block_size, block_size, block_size, obj.x, obj.y, block_size, block_size);
       }
       else {
         ctx.fillStyle = colors[obj.type];
@@ -549,8 +556,13 @@ $('is-solid').addEventListener('change', function(evt) {
 //     edit(selected_block.type);
 // });
 
+$('tilesets').addEventListener('change', function(evt) {
+  viewSpritesheet(parseInt(evt.target.value));
+  renderTileset();
+});
+
 $('tileset').addEventListener('click', function(evt) {
-  if (!imgs[0])
+  if (!imgs.length)
     return;
 
   // if we make the tileset map scrollable, we may need to use pageX
@@ -561,6 +573,10 @@ $('tileset').addEventListener('click', function(evt) {
   current_color_ix = x + y * num_tiles_w;
   renderTileset();
 });
+
+function viewSpritesheet(ix) {
+  img_ix = ix;
+}
 
 function getClientLeft(el) {
   var offset = 0;
@@ -582,26 +598,36 @@ function getClientTop(el) {
   return offset;
 }
 
-$("update-img").addEventListener("change", function() {
-  if (!selected_block)
-    return;
-
-  // load file into image object
+$('add-img').addEventListener('change', function() {
   var file = this.files[0];
   var data_url = URL.createObjectURL(file);
-  loadImage(0, data_url);
+  var img_ix = imgs.length;
+  loadImage(img_ix, data_url, file.name);
 });
 
-function loadImage(img_ix, data_url) {
-  var img = new Image();
-  
-  img.onload = function() {
-    // free the memory (unfortunately this is a blob-url ref, not a full data-url)
-    URL.revokeObjectURL(this.src);
+$("update-img").addEventListener("change", function() {
+  var file = this.files[0];
+  var data_url = URL.createObjectURL(file);
+  var img_ix = parseInt($('tilesets').value);
+  loadImage(img_ix, data_url, file.name);
+});
 
-    imgs[img_ix] = img;
+async function loadImage(img_ix, data_url, filename) {
+  return new Promise(function(resolve, reject) {
+    var img = new Image();
+    img.filename = filename;
+    
+    img.onload = function() {
+      // free the memory (unfortunately this is a blob-url ref, not a full data-url)
+      URL.revokeObjectURL(this.src);
 
-    if (img_ix == 0) { // the tileset image
+      var prev_length = imgs.length;
+      imgs[img_ix] = img;
+      if (imgs.length > prev_length)
+        viewSpritesheet(img_ix);
+
+      // TODO: add an opt-out checkbox in case users are adding lots of images?
+      // Or, instead, allow different grid sizes on each spritesheet via num_cols/num_rows text boxes
       var misaligned_dimensions = [];
       if (img.width % block_size)
         misaligned_dimensions.push(`width (${img.width})`);
@@ -615,16 +641,31 @@ function loadImage(img_ix, data_url) {
       $('tileset').setAttribute('width', img.width);
       $('tileset').setAttribute('height', img.height);
       renderTileset();
-    }
-  };
 
-  img.src = data_url;
+      var opts = imgs.map((img, ix) => [img.filename, ix]);
+      setSelectOptions($('tilesets'), opts);
+      $('tilesets').value = img_ix;
+
+      $("tilesets").style.display = '';
+      $("update-img-label").style.display = '';
+      $("update-img").style.display = '';
+      $("tileset").style.display = '';
+      resolve();
+    };
+
+    img.src = data_url;
+  });
 }
 
 function renderTileset() {
-  var tileset_ctx = $('tileset').getContext('2d');
+  if (!(imgs[img_ix] instanceof HTMLImageElement))
+    return;
+
+  var canvas = $('tileset');
+  var tileset_ctx = canvas.getContext('2d');
+  tileset_ctx.clearRect(0, 0, canvas.width, canvas.height);
   tileset_ctx.imageSmoothingEnabled = false;
-  tileset_ctx.drawImage(imgs[0], 0, 0);
+  tileset_ctx.drawImage(imgs[img_ix], 0, 0);
 
   // outline currently selected tile in tileset
   var x = current_color_ix % num_tiles_w;
@@ -690,8 +731,8 @@ function save() {
       canvas.width = imgs[i].width;
       canvas.height = imgs[i].height;
       var context = canvas.getContext('2d');
-      context.drawImage(imgs[0], 0, 0);
-      data.images[i] = canvas.toDataURL();
+      context.drawImage(imgs[i], 0, 0);
+      data.images[i] = {url: canvas.toDataURL(), filename: imgs[i].filename};
     }
     else {
       data.images[i] = null;
@@ -968,7 +1009,7 @@ function setStart(x, y) {
     start_y = y * block_size;
 }
 
-function loadGame(game_name) {
+async function loadGame(game_name) {
   var json = localStorage.getItem(game_name);
   if (!json)
     return alert('Sorry, no level with the name "' + game_name + '" exists.');
@@ -978,7 +1019,7 @@ function loadGame(game_name) {
   var images = parsed.images || [];
   for (var i = 0; i < 10; i++) {
     if (images[i])
-      loadImage(i, images[i]);
+      await loadImage(i, images[i].url, images[i].filename);
     else
       imgs[i] = null;
   }
@@ -1005,7 +1046,7 @@ function loadLevel(level_n) {
   fireEvent(level, 'start');
 }
 
-function createTile(grid_x, grid_y, ix) {
+function createTile(grid_x, grid_y, ix, img_ix) {
   x = grid_x * block_size;
   y = grid_y * block_size;
   var obj = {
@@ -1016,6 +1057,7 @@ function createTile(grid_x, grid_y, ix) {
     w: block_size,
     h: block_size,
     type: ix,
+    img_ix: img_ix,
     is_solid: true
   };
 

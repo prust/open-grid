@@ -17,3 +17,15 @@ Features:
 - [x] Ability to move between levels (`loadLevel(level_name)`)
 - [x] Image Editor
 - [x] Infinite scrolling
+
+API:
+
+* setGravity(x, y)
+* setSpeed(x, y)
+* setPosition(x, y)
+* setStart(x, y)
+* loadGame(game_name)
+* restart()
+* loadLevel(level_num)
+* createTile(grid_x, grid_y, tile_ix, spritesheet_ix)
+* fireEvent(obj, evt_name)
