@@ -20,14 +20,14 @@ Features:
 
 API:
 
-* setGravity(x, y)
-* setSpeed(x, y)
-* setPosition(x, y)
-* setStart(x, y)
-* loadGame(game_name)
-* restart()
-* loadLevel(level_num)
-* createTile(grid_x, grid_y, sprite_x, sprite_y[, spritesheet_ix])
-* getTile(grid_x, grid_y)
-* fireEvent(obj, evt_name)
-* await timeout(seconds)
+* `setGravity(x, y)`
+* `setSpeed(x, y)`
+* `setPosition(x, y)`
+* `setStart(x, y)`
+* `loadGame(game_name)`
+* `restart()`
+* `loadLevel(level_num)`
+* `createTile(grid_x, grid_y, sprite_x, sprite_y, *spritesheet_ix)`
+* `getTile(grid_x, grid_y)`
+* `fireEvent(object, event_name)`
+* `await timeout(seconds)`

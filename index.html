@@ -85,6 +85,43 @@ body {
 #sidebar input[type=text], #sidebar textarea {
   border: 1px solid #dddddd
 }
+#sidebar #obj_types {
+  width: 130px;
+}
+#sidebar #props_panel {
+  position: absolute;
+  top: 0;
+  bottom: 50%;
+  left: 0;
+  right: 0;
+  padding: 10px;
+}
+#sidebar #sprites_panel {
+  position: absolute;
+  top: 50%;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px;
+}
+#sidebar .panel {
+  overflow: auto;
+}
+#sidebar .link {
+  cursor: pointer;
+  text-decoration: underline;
+}
+#sidebar .link:hover {
+  color: blue;
+}
+#sidebar .link.small {
+  font-size: 11px;
+  vertical-align: middle;
+  text-decoration: none;
+}
+#sidebar .link.small:hover {
+  text-decoration: underline;
+}
 canvas {
   image-rendering: -moz-crisp-edges;
   image-rendering: -webkit-crisp-edges;
@@ -98,37 +135,45 @@ canvas {
 <canvas id="canvas">
 </canvas>
 <div id="sidebar" style="right: 0px">
-  <h3 id="properties_heading"></h3>
-  <table id="properties">
-    <tr class="object_properties">
-      <td><label for="obj_id">ID:</label></td>
-      <td><input id="obj_id" type="text"></td>
-    </tr>
-    <tr class="object_properties">
-      <td><label for="obj_types">Types:</label></td>
-      <td><input id="obj_types" type="text"></td>
-    </tr>
-    <tr class="object_properties">
-      <td><label for="is-solid">Solid:</label></td>
-      <td><input type="checkbox" id="is-solid"></td>
-    </tr>
-    <tr>
-      <td><label for="event">Code:</label></td>
-      <td><select id="event"></select></td>
-    </tr>
-    <tr>
-      <td colspan="2"><textarea id="code"></textarea></td>
-    </tr>
-  </table>
-  <!--button id="edit-img">Edit Image</button><br-->
+  <div id="props_panel" class="panel">
+    <h3 id="properties_heading"></h3>
+    <table id="properties">
+      <tr id="id_properties">
+        <td><label for="obj_id">ID:</label></td>
+        <td><input id="obj_id" type="text"></td>
+      </tr>
+      <tr id="types_properties">
+        <td><label for="obj_types">Types:</label></td>
+        <td>
+          <div id="obj_types"></div>
+          <button id="add_type">Add Type</button>
+          <select id="add_types" style="display: none"></select> <button id="new_type" style="display: none">New</button> <button id="cancel_add_type" style="display: none">Cancel</button>
+        </td>
+      </tr>
+      <tr id="tile_properties">
+        <td><label for="is-solid">Solid:</label></td>
+        <td><input type="checkbox" id="is-solid"></td>
+      </tr>
+      <tr class="event_properties">
+        <td><label for="event">Code:</label></td>
+        <td><select id="event"></select></td>
+      </tr>
+      <tr class="event_properties">
+        <td colspan="2"><textarea id="code"></textarea></td>
+      </tr>
+    </table>
+    <!--button id="edit-img">Edit Image</button><br-->
+  </div>
 
-  <h3>Spritesheets</h3>
-  <label for="add-img">Add Spritesheet:</label>
-  <input type="file" id="add-img"><br><br>
-  <select id="tilesets" style="display: none"></select><br><br>
-  <canvas id="tileset"></canvas><br><br>
-  <label id="update-img-label" for="update-img" style="display: none">Replace Spritesheet Image:</label>
-  <input type="file" id="update-img" style="display: none">
+  <div id="sprites_panel" class="panel">
+    <h3>Spritesheets</h3>
+    <label for="add-img">Add Spritesheet:</label>
+    <input type="file" id="add-img"><br><br>
+    <select id="tilesets" style="display: none"></select><br><br>
+    <canvas id="tileset" width="200" height="100"></canvas><br><br>
+    <label id="update-img-label" for="update-img" style="display: none">Replace Spritesheet Image:</label>
+    <input type="file" id="update-img" style="display: none">
+  </div>
 </div>
 <div id="header">
   <div id="load" class="fa fa-folder-open-o"></div><div id="save" class="fa fa-floppy-o"></div><div id="coords"></div>
@@ -142,25 +187,27 @@ var grid_height = 100;
 var block_size = 16;
 var num_tiles_w = 0;
 var num_tiles_h = 0;
-var selected_block = null;
-var curr_sprite_x = 0;
-var curr_sprite_y = 0;
+var selected_tile = null;
+var selected_obj = null;
+var curr_sprite = null;
 var img_editor = null;
 var start_x = 0;
 var start_y = 0;
 var imgs = [];
 var img_ix = null;
 var zoom = 2;
-var levels = [{objects: []}];
+var levels = [{objects: [], type: 'level'}];
 var level = null;
 var level_num;
+var types = {};
 
 var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 0};
 loadLevel(1);
 var events = {
   level: ['Start'],
-  tile: ['Create', 'Collide']
+  type: ['Create', 'Collide']
 };
+select(level);
 
 function Viewport(width, height) {
   this.width = width;
@@ -264,19 +311,22 @@ GameEditor.prototype.onMouseDown = function(evt) {
   }
 
   if (obj_under_mouse) {
-    if (obj_under_mouse == selected_block) {
-      deselectBlock();
+    if (obj_under_mouse == selected_tile) {
+      deselect();
     }
     else {
-      obj_under_mouse.img_ix = img_ix;
-      obj_under_mouse.sprite_x = curr_sprite_x;
-      obj_under_mouse.sprite_y = curr_sprite_y;
-      selectBlock(obj_under_mouse);
+      if (curr_sprite != null) {
+        obj_under_mouse.img_ix = img_ix;
+        obj_under_mouse.sprite_x = curr_sprite.x;
+        obj_under_mouse.sprite_y = curr_sprite.y;
+        obj_under_mouse.types = curr_sprite.types;
+      }
+      select(obj_under_mouse);
     }
   }
   else {
-    var obj = createTile(pxToGrid(pt.x), pxToGrid(pt.y), curr_sprite_x, curr_sprite_y, img_ix);
-    selectBlock(obj);
+    var obj = createTile(pxToGrid(pt.x), pxToGrid(pt.y), curr_sprite.x, curr_sprite.y, img_ix, curr_sprite.types);
+    select(obj);
   }
 };
 
@@ -293,6 +343,8 @@ GameEditor.prototype.onMouseMove = function(evt) {
 
   if (evt.buttons % 2 != LEFT_BTN)
     return;
+  if (curr_sprite == null)
+    return;
 
   var pt = {x: pt_x, y: pt_y};
   var obj_under_mouse;
@@ -303,13 +355,14 @@ GameEditor.prototype.onMouseMove = function(evt) {
   }
   
   if (!obj_under_mouse) {
-    var obj = createTile(grid_x, grid_y, curr_sprite_x, curr_sprite_y, img_ix);
-    selectBlock(obj);
+    var obj = createTile(grid_x, grid_y, curr_sprite.x, curr_sprite.y, img_ix, curr_sprite.types);
+    select(obj);
   }
   else {
     obj_under_mouse.img_ix = img_ix;
-    obj_under_mouse.sprite_x = curr_sprite_x;
-    obj_under_mouse.sprite_y = curr_sprite_y;
+    obj_under_mouse.sprite_x = curr_sprite.x;
+    obj_under_mouse.sprite_y = curr_sprite.y;
+    obj_under_mouse.types = curr_sprite.types;
   }
 };
 
@@ -331,63 +384,136 @@ GameEditor.prototype.destroy = function() {
 // i thought these colors were taken from a DB16 palette
 // but they weren't, they're from another "DawnBringer" palette here:
 // http://pixeljoint.com/forum/forum_posts.asp?TID=22582
-var colors = [
-  null, // at present 1-9 are the colors, 0 means no-block & isn't a color
-  '#5e6660', // dark-ish grey
-  '#5d4632', // dark brown
-  '#44508c', // med (darker) blue
-  '#a6414d', // dark red
-  '#c86b36', // orange
-  '#52903c', // dark green
-  '#db7ebd', // pink
-  '#deac85', // tan
-  '#f2de70' // yellow
-];
-
-selectBlock(createTile(0, 8, curr_sprite_x, curr_sprite_y, img_ix));
+// var colors = [
+//   null, // at present 1-9 are the colors, 0 means no-block & isn't a color
+//   '#5e6660', // dark-ish grey
+//   '#5d4632', // dark brown
+//   '#44508c', // med (darker) blue
+//   '#a6414d', // dark red
+//   '#c86b36', // orange
+//   '#52903c', // dark green
+//   '#db7ebd', // pink
+//   '#deac85', // tan
+//   '#f2de70' // yellow
+// ];
 
 var game_editor = new GameEditor(ctx);
 
-function selectBlock(obj) {
+function select(obj) {
+  if (!obj)
+    throw new Error('select() called with no object');
+
   // this runs before blur, save before updateProperties() blows the code away
   if (document.activeElement.tagName == 'TEXTAREA')
     saveCode();
 
-  selected_block = obj;
-  updateProperties(obj);
+  selected_obj = obj;
+  selected_tile = obj.type == 'tile' ? obj : null;
+  updateProperties();
+  renderTileset();
 }
 
-function deselectBlock() {
-  // this runs before blur, save before updateProperties() blows the code away
-  if (document.activeElement.tagName == 'TEXTAREA')
-    saveCode();
-
-  selected_block = null;
-  updateProperties();
+function deselect() {
+  select(level);
 }
 
 function updateProperties() {
-  if (selected_block) {
+  if (selected_tile) {
     $('properties_heading').innerText = 'Object Properties';
-    $('is-solid').checked = selected_block.is_solid;
   }
-  else {
+  else if (selected_obj && selected_obj.type == 'sprite') {
+    $('properties_heading').innerText = 'Sprite Properties';
+  }
+  else if (selected_obj && selected_obj.type == 'type') {
+    $('properties_heading').innerText = `${selected_obj.name} Properties`;
+  }
+  else if (selected_obj && selected_obj.type == 'level') {
     $('properties_heading').innerText = 'Level Properties';
   }
+  else {
+    if (!selected_obj)
+      throw new Error('No selected object');
+    else
+      throw new Error(`Unknown selected object type: ${selected_obj.type}`);
+  }
 
-  for (var tr of $$('object_properties'))
-    tr.style.display = selected_block ? '' : 'none';
+  if (selected_obj.type == 'type') {
+    hide('id_properties');
+  }
+  else {
+    $('obj_id').value = selected_obj.id || '';
+    show('id_properties');
+  }
+
+  if (selected_obj.type == 'sprite' || selected_obj.type == 'tile') {
+    var type_html = selected_obj.types.map(name => `<div>
+      <span class="nav_to_type link" data-type="${name}">${name}</span> <span class="remove_type link small" data-type="${name}">remove</span>
+    </div>`);
+    
+    var types_div = $('obj_types');
+    types_div.innerHTML = type_html.join('');
+    for (var nav_link of types_div.querySelectorAll('.nav_to_type')) {
+      nav_link.addEventListener('click', function(evt) {
+        var type_name = evt.target.getAttribute('data-type');
+        select(types[type_name]);
+      });
+    }
+    for (var remove_link of types_div.querySelectorAll('.remove_type')) {
+      remove_link.addEventListener('click', function(evt) {
+        var type_name = evt.target.getAttribute('data-type');
+        var type_ix = selected_obj.types.indexOf(type_name);
+        if (type_ix == -1)
+          throw new Error(`Remove type clicked but type ${type_name} not found in ${selected_obj.types}`);
+        selected_obj.types.splice(type_ix, 1);
+        updateProperties();
+
+        if (selected_obj.type == 'sprite') {
+          cascade(selected_obj, function(obj) {
+            var type_ix = obj.types.indexOf(type_name);
+            if (type_ix > -1)
+              obj.types.splice(type_ix, 1);
+          });
+        }
+      });
+    }
+
+    var type_opts = [['Select:', 'CHOOSE_TYPE']];
+    type_opts = type_opts.concat(Object.keys(types).map(name => [name, name]));
+    setSelectOptions($('add_types'), type_opts);
+
+    show('types_properties');
+  }
+  else {
+    hide('types_properties');
+  }
+
+  for (var el of $$('event_properties')) {
+    if (selected_obj.type == 'type' || selected_obj.type == 'level') {
+      var evts = events[selected_obj.type];
+      var opts = evts.map(name => [`On ${name}`, name.toLowerCase()]);
+      setSelectOptions($('event'), opts);
+
+      var obj = selected_tile || level;
+      var evt_handler_name = 'on_' + $('event').value;
+      var evt_handler = obj[evt_handler_name];
+      if (typeof(evt_handler) == 'function')
+        evt_handler = getAsyncFnBody(evt_handler, evt_handler_name);
+      $('code').value = evt_handler || '';
+
+      show(el);
+    }
+    else
+      hide(el);
+  }
+
+  if (selected_obj.type == 'tile') {
+    $('is-solid').checked = selected_obj.is_solid;
+    show('tile_properties');
+  }
+  else {
+    hide('tile_properties');
+  }
   
-  var evts = events[selected_block ? 'tile' : 'level'];
-  var opts = evts.map(name => [`On ${name}`, name.toLowerCase()]);
-  setSelectOptions($('event'), opts);
-
-  var obj = selected_block || level;
-  var evt_handler_name = 'on_' + $('event').value;
-  var evt_handler = obj[evt_handler_name];
-  if (typeof(evt_handler) == 'function')
-    evt_handler = getAsyncFnBody(evt_handler, evt_handler_name);
-  $('code').value = evt_handler || '';
   // $('edit-img').textContent = 'Edit Image ' + /*obj.type*/;
 }
 
@@ -428,10 +554,10 @@ function draw() {
     }
 
     // draw selection
-    if (selected_block) {
+    if (selected_tile) {
       ctx.strokeStyle = '#3B88FD';
       ctx.lineWidth=2;
-      ctx.strokeRect(selected_block.x, selected_block.y, selected_block.w, selected_block.h);
+      ctx.strokeRect(selected_tile.x, selected_tile.y, selected_tile.w, selected_tile.h);
     }
 
     // draw player
@@ -557,19 +683,73 @@ function onBlur(evt) {
 
 $('obj_id').addEventListener('blur', onTextInputChange);
 $('obj_id').addEventListener('change', onTextInputChange);
-$('obj_types').addEventListener('blur', onTextInputChange);
-$('obj_types').addEventListener('change', onTextInputChange);
+
+$('add_type').addEventListener('click', function() {
+  showAddTypeUI();
+});
+
+$('add_types').addEventListener('change', function(evt) {
+  addType(evt.target.value);
+  hideAddTypeUI();
+});
+
+$('new_type').addEventListener('click', function() {
+  var type_name = prompt("Enter name of new type:");
+  if (!type_name)
+    return;
+
+  if (type_name in types)
+    return alert('There is already a type of this name.');
+
+  types[type_name] = {type: 'type', name: type_name};
+  addType(type_name);
+  updateProperties();
+  hideAddTypeUI();
+});
+
+function addType(type_name) {
+  if (selected_obj.types.includes(type_name))
+    return;
+
+  selected_obj.types.push(type_name);
+  updateProperties();
+
+  // cascade the type addition to all objects using this sprite
+  if (selected_obj.type == 'type') {
+    cascade(selected_obj, function(obj) {
+      if (!obj.types.includes(type_name))
+        obj.types.push(type_name)
+    });
+  }
+}
+
+// cascade changes to all objects that use a sprite
+function cascade(sprite, cb) {
+  for (var obj of objects)
+    if (obj.grid_x == selected_obj.x && obj.grid_y == selected_obj.y)
+      cb(obj);
+}
+
+$('cancel_add_type').addEventListener('click', function() {
+  hideAddTypeUI();
+});
+
+function showAddTypeUI() {
+  hide('add_type');
+  show('add_types', 'new_type', 'cancel_add_type');
+}
+
+function hideAddTypeUI() {
+  hide('add_types', 'new_type', 'cancel_add_type');
+  show('add_type');
+}
 
 function saveCode() {
-  var block = selected_block;
   var evt_name = $('event').value;
   if (!evt_name)
     throw new Error('saveCode() called when the event selector was not populated');
 
-  if (block)
-    block['on_' + evt_name] = $('code').value;
-  else
-    level['on_' + evt_name] = $('code').value;
+  selected_obj['on_' + evt_name] = $('code').value;
 }
 
 function onTextInputChange(evt) {
@@ -578,20 +758,20 @@ function onTextInputChange(evt) {
   if (prop == 'types')
     val = val.split(',').map(str => str.trim());
 
-  if (selected_block)
-    selected_block[prop] = val;
+  if (selected_obj)
+    selected_obj[prop] = val;
   else
     throw new Error('text input change called without a selected object');
 }
 
 $('is-solid').addEventListener('change', function(evt) {
-  if (selected_block)
-    selected_block.is_solid = !!evt.target.checked;
+  if (selected_tile)
+    selected_tile.is_solid = !!evt.target.checked;
 });
 
 // $('edit-img').addEventListener('click', function() {
-//   if (selected_block)
-//     edit(/*selected_block.type*/);
+//   if (selected_tile)
+//     edit(/*selected_tile.type*/);
 // });
 
 $('tilesets').addEventListener('change', function(evt) {
@@ -606,9 +786,24 @@ $('tileset').addEventListener('click', function(evt) {
   // if we make the tileset map scrollable, we may need to use pageX
   var x = evt.clientX - getClientLeft(evt.target);
   var y = evt.clientY - getClientTop(evt.target);
-  curr_sprite_x = pxToGrid(x);
-  curr_sprite_y = pxToGrid(y);
-  renderTileset();
+  var curr_sprite_x = pxToGrid(x);
+  var curr_sprite_y = pxToGrid(y);
+
+  // toggle selection on click of sprite
+  if (selected_obj.type == 'sprite' && selected_obj.x == curr_sprite_x && selected_obj.y == curr_sprite_y) {
+    curr_sprite = null;
+    return deselect();
+  }
+  
+  var sprite_coords = `${curr_sprite_x},${curr_sprite_y}`;
+  var sprites = imgs[img_ix].sprites;
+  var sprite = sprites[sprite_coords];
+  if (!sprite) {
+    sprite = {type: 'sprite', id: '', x: curr_sprite_x, y: curr_sprite_y, types: []};
+    sprites[sprite_coords] = sprite;
+  }
+  curr_sprite = sprite;
+  select(sprite);
 });
 
 function viewSpritesheet(ix) {
@@ -649,10 +844,11 @@ $("update-img").addEventListener("change", function() {
   loadImage(img_ix, data_url, file.name);
 });
 
-async function loadImage(img_ix, data_url, filename) {
+async function loadImage(img_ix, data_url, filename, sprites) {
   return new Promise(function(resolve, reject) {
     var img = new Image();
     img.filename = filename;
+    img.sprites = sprites || {};
     
     img.onload = function() {
       // free the memory (unfortunately this is a blob-url ref, not a full data-url)
@@ -705,9 +901,15 @@ function renderTileset() {
   tileset_ctx.drawImage(imgs[img_ix], 0, 0);
 
   // outline currently selected tile in tileset
-  tileset_ctx.strokeStyle = '#3B88FD';
-  tileset_ctx.lineWidth = 2;
-  tileset_ctx.strokeRect(curr_sprite_x * block_size, curr_sprite_y * block_size, block_size, block_size);
+  if (curr_sprite) {
+    if (curr_sprite == selected_obj)
+      tileset_ctx.strokeStyle = '#3B88FD'; // selected styling
+    else
+      tileset_ctx.strokeStyle = '#FFFFFF'; // white "current" styling
+
+    tileset_ctx.lineWidth = 2;
+    tileset_ctx.strokeRect(curr_sprite.x * block_size, curr_sprite.y * block_size, block_size, block_size);
+  }
 }
 
 var LEFT = 37;
@@ -728,11 +930,11 @@ document.addEventListener('keydown', function(evt) {
     player.vel_y = -5;
   else if (evt.keyCode == DOWN && player.accel_x != 0)
     player.vel_y = 5;
-  else if (evt.keyCode == DEL && selected_block) {
-    var ix = objects.indexOf(selected_block);
+  else if (evt.keyCode == DEL && selected_tile) {
+    var ix = objects.indexOf(selected_tile);
     if (ix > -1)
       objects.splice(ix, 1);
-    deselectBlock();
+    deselect();
   }
   else if (evt.keyCode == ESC) {
     if (img_editor) {
@@ -741,15 +943,15 @@ document.addEventListener('keydown', function(evt) {
       game_editor = new GameEditor(ctx);
       viewport.follow(player);
     }
-    else if (selected_block) {
-      deselectBlock();
+    else if (selected_obj) {
+      deselect();
     }
   }
 });
 
 // function edit(img_ix) {
 //   if (!img_editor) {
-//     deselectBlock();
+//     deselect();
 //     img_editor = new ImageEditor(ctx, img_ix);
 //     game_editor.destroy();
 //   }
@@ -757,7 +959,7 @@ document.addEventListener('keydown', function(evt) {
 
 function save() {
   var name = prompt('What would you like to name this game?');
-  var data = {images: [], levels: levels};
+  var data = {images: [], levels: levels, types: types};
 
   // serialize functions back to strings manually
   // otherwise they get wrapped in 'async function() { ... }'
@@ -776,7 +978,7 @@ function save() {
       canvas.height = imgs[i].height;
       var context = canvas.getContext('2d');
       context.drawImage(imgs[i], 0, 0);
-      data.images[i] = {url: canvas.toDataURL(), filename: imgs[i].filename};
+      data.images[i] = {url: canvas.toDataURL(), filename: imgs[i].filename, sprites: imgs[i].sprites};
     }
     else {
       data.images[i] = null;
@@ -816,9 +1018,31 @@ function jump() {
     player.vel_x = 20;
 }
 
-// DOM helpers
-function $(id) {
-  return document.getElementById(id);
+// HTML DOM helpers
+function toggle_visibility(id_or_el, id2, id3) {
+  for (var id_or_el of Array.from(arguments)) {
+    if (is_visible(id_or_el))
+      hide(id_or_el);
+    else
+      show(id_or_el);
+  }
+}
+function show(id_or_el, id2, id3) {
+  for (var id_or_el of Array.from(arguments))
+    $(id_or_el).style.display = '';  
+}
+function hide(id_or_el, id2, id3) {
+  for (var id_or_el of Array.from(arguments))
+    $(id_or_el).style.display = 'none';
+}
+function is_visible(id_or_el) {
+  return $(id_or_el).style.display != 'none';
+}
+function $(id_or_el) {
+  if (id_or_el instanceof HTMLElement)
+    return id_or_el;
+  else
+    return document.getElementById(id_or_el);
 }
 function $$(class_name) {
   return document.getElementsByClassName(class_name);
@@ -1077,11 +1301,12 @@ async function loadGame(game_name) {
     return alert('Sorry, no level with the name "' + game_name + '" exists.');
   var parsed = JSON.parse(json);
   levels = parsed.levels;
+  types = parsed.types || {};
 
   var images = parsed.images || [];
   for (var i = 0; i < 10; i++) {
     if (images[i])
-      await loadImage(i, images[i].url, images[i].filename);
+      await loadImage(i, images[i].url, images[i].filename, images[i].sprites);
     else
       imgs[i] = null;
   }
@@ -1110,7 +1335,7 @@ function loadLevel(level_n) {
     fireEvent(obj, 'create');
 }
 
-function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix) {
+function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types) {
   if (spritesheet_ix == null)
     spritesheet_ix = 0;
 
@@ -1126,7 +1351,9 @@ function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix) {
     sprite_x: sprite_x,
     sprite_y: sprite_y,
     img_ix: spritesheet_ix,
-    is_solid: true
+    is_solid: true,
+    type: 'tile',
+    types: types || []
   };
 
   objects.push(obj);
@@ -1139,7 +1366,25 @@ function getTile(grid_x, grid_y) {
 }
 
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-function fireEvent(obj, evt_name) {
+function fireEvent(obj, evt_name, this_obj) {
+  if (obj.type == 'tile') {
+    for (var type_name of obj.types) {
+      var type = types[type_name];
+      if (type)
+        fireEvent(type, evt_name, obj);
+    }
+    return;
+  }
+  else if (obj.type == 'level') {
+    this_obj = obj;
+  }
+  else if (obj.type == 'type') {
+    // pass through; these are called recursively from tile.types
+  }
+  else {
+    throw new Error(`Unexpected object passed to fireEvent, type ${obj.type}`);
+  }
+
   var handler_name = 'on_' + evt_name;
   if (!obj[handler_name])
     return;
@@ -1148,7 +1393,7 @@ function fireEvent(obj, evt_name) {
     if (typeof(obj[handler_name]) != 'function')
       obj[handler_name] = new AsyncFunction(obj[handler_name]);
 
-  obj[handler_name]();
+    obj[handler_name].call(this_obj);
   }
   catch(err) {
     alert(err.message);
@@ -1160,8 +1405,8 @@ function fireEvent(obj, evt_name) {
 
     obj[handler_name] = lines.join('\n');
 
-    if (selected_block && selected_block == obj)
-      updateProperties(obj);
+    if (selected_obj == this_obj)
+      updateProperties();
   }
 }
 
