@@ -311,22 +311,23 @@ GameEditor.prototype.onMouseDown = function(evt) {
   }
 
   if (obj_under_mouse) {
-    if (obj_under_mouse == selected_tile) {
-      deselect();
+    if (selected_obj && selected_obj.type == 'sprite') {
+      obj_under_mouse.img_ix = img_ix;
+      obj_under_mouse.sprite_x = curr_sprite.x;
+      obj_under_mouse.sprite_y = curr_sprite.y;
+      obj_under_mouse.types = curr_sprite.types.slice(); // deep clone
     }
     else {
-      if (curr_sprite != null) {
-        obj_under_mouse.img_ix = img_ix;
-        obj_under_mouse.sprite_x = curr_sprite.x;
-        obj_under_mouse.sprite_y = curr_sprite.y;
-        obj_under_mouse.types = curr_sprite.types.slice(); // deep clone
-      }
-      select(obj_under_mouse);
+      // toggle selection
+      if (obj_under_mouse == selected_tile)
+        deselect();
+      else
+        select(obj_under_mouse);
     }
   }
   else {
-    var obj = createTile(pxToGrid(pt.x), pxToGrid(pt.y), curr_sprite.x, curr_sprite.y, img_ix, curr_sprite.types);
-    select(obj);
+    if (curr_sprite != null)
+      createTile(pxToGrid(pt.x), pxToGrid(pt.y), curr_sprite.x, curr_sprite.y, img_ix, curr_sprite.types);
   }
 };
 
@@ -358,9 +359,8 @@ GameEditor.prototype.onMouseMove = function(evt) {
   
   if (!obj_under_mouse) {
     var obj = createTile(grid_x, grid_y, curr_sprite.x, curr_sprite.y, img_ix, curr_sprite.types);
-    select(obj);
   }
-  else {
+  else if (curr_sprite != null) {
     obj_under_mouse.img_ix = img_ix;
     obj_under_mouse.sprite_x = curr_sprite.x;
     obj_under_mouse.sprite_y = curr_sprite.y;
