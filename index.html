@@ -319,7 +319,7 @@ GameEditor.prototype.onMouseDown = function(evt) {
         obj_under_mouse.img_ix = img_ix;
         obj_under_mouse.sprite_x = curr_sprite.x;
         obj_under_mouse.sprite_y = curr_sprite.y;
-        obj_under_mouse.types = curr_sprite.types;
+        obj_under_mouse.types = curr_sprite.types.slice(); // deep clone
       }
       select(obj_under_mouse);
     }
@@ -362,7 +362,7 @@ GameEditor.prototype.onMouseMove = function(evt) {
     obj_under_mouse.img_ix = img_ix;
     obj_under_mouse.sprite_x = curr_sprite.x;
     obj_under_mouse.sprite_y = curr_sprite.y;
-    obj_under_mouse.types = curr_sprite.types;
+    obj_under_mouse.types = curr_sprite.types.slice(); // deep clone
   }
 };
 
@@ -493,9 +493,8 @@ function updateProperties() {
       var opts = evts.map(name => [`On ${name}`, name.toLowerCase()]);
       setSelectOptions($('event'), opts);
 
-      var obj = selected_tile || level;
       var evt_handler_name = 'on_' + $('event').value;
-      var evt_handler = obj[evt_handler_name];
+      var evt_handler = selected_obj[evt_handler_name];
       if (typeof(evt_handler) == 'function')
         evt_handler = getAsyncFnBody(evt_handler, evt_handler_name);
       $('code').value = evt_handler || '';
@@ -726,7 +725,7 @@ function addType(type_name) {
 // cascade changes to all objects that use a sprite
 function cascade(sprite, cb) {
   for (var obj of objects)
-    if (obj.grid_x == selected_obj.x && obj.grid_y == selected_obj.y)
+    if (obj.sprite_x == sprite.x && obj.sprite_y == sprite.y)
       cb(obj);
 }
 
