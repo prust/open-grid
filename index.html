@@ -192,6 +192,8 @@ canvas {
   <div id="load" class="fa fa-folder-open-o"></div>
   <div id="save" class="fa fa-floppy-o"></div>
   <div id="export" class="fa fa-download"></div>
+  <input type="file" id="import-game" style="opacity: 0">
+  <div id="import" class="fa fa-upload"></div>
   <span id="status"></span>
   <div id="coords"></div>
   <!--div id="cur_color"></div-->
@@ -300,6 +302,8 @@ $('export').addEventListener('click', function() {
   var json = serializeGame();
   downloadJSON(json, (game_name || 'game') + '.json');
 });
+
+$('import').addEventListener
 
 $('restart').addEventListener('click', function() {
   var is_play_btn = hasClass($('restart'), 'fa-play-circle');
@@ -1338,12 +1342,12 @@ function play() {
   startLevel();
 }
 function hideDesignUI() {
-  hide('sidebar', 'load', 'save', 'export', 'coords');
+  hide('sidebar', 'load', 'save', 'export', 'import', 'coords');
 }
 function stop() {
   is_playing = false;
   load();
-  show('sidebar', 'load', 'save', 'export', 'coords');
+  show('sidebar', 'load', 'save', 'export', 'import', 'coords');
 }
 
 /*function ImageEditor(ctx, img_ix) {
