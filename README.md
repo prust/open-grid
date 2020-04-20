@@ -17,23 +17,28 @@ Features:
 - [x] Image Editor
 - [x] Infinite level size
 
-API:
+Player API:
 
 * `setGravity(x, y)`
 * `setSpeed(x, y)`
 * `setPosition(x, y)`
 * `setStart(x, y)`
-* `loadLevel(level_num)`
+
+Tile API:
 * `createTile(grid_x, grid_y, sprite_id)`
 * `cloneTile(tile, overrides)`
 * `getTile(grid_x, grid_y)`
 * `deleteTile(tile)`
-* `getGridX/Y(obj)` and `setGridX/Y(obj, new_val)`
-* `fireEvent(object, event_name)`
+* `getGridX/Y(tile)` and `setGridX/Y(tile, new_value)`
+* `fireEvent(tile, event_name)`
+* `await animate(tile, steps, seconds_per_step)`
+
+General API:
+* `loadLevel(level_num)`
 * `await timeout(seconds)`
-* `await animate(obj, steps, seconds_per_step)`
-* `setStatus(str)`
+* `setStatus(message)`
 * `setCursor(cursor_id)`
+* `alert(message)`
 
 Tile Properties:
 * `.opacity` (number between 0 and 1)
