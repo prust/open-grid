@@ -186,8 +186,14 @@ canvas {
   </div>
 </div>
 <div id="header">
-  <div id="load" class="fa fa-folder-open-o"></div><div id="save" class="fa fa-floppy-o"></div><span id="status"></span><div id="coords"></div>
-  <!--div id="cur_color"></div--><div id="restart" class="fa fa-play-circle"></div><div id="fullscreen" class="fa fa-arrows-alt"></div>
+  <div id="load" class="fa fa-folder-open-o"></div>
+  <div id="save" class="fa fa-floppy-o"></div>
+  <div id="export" class="fa fa-download"></div>
+  <span id="status"></span>
+  <div id="coords"></div>
+  <!--div id="cur_color"></div-->
+  <div id="restart" class="fa fa-play-circle"></div>
+  <div id="fullscreen" class="fa fa-arrows-alt"></div>
 </div>
 <script>
 var MAX_VEL = 50;
@@ -211,6 +217,7 @@ var level = null;
 var level_num;
 var types = {};
 var game_name = '';
+var is_playing = false;
 
 var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 0};
 loadLevel(1);
@@ -285,14 +292,22 @@ $('save').addEventListener('click', function() {
   save();
 });
 
+$('export').addEventListener('click', function() {
+  var json = serializeGame();
+  downloadJSON(json, (game_name || 'game') + '.json');
+});
+
 $('restart').addEventListener('click', function() {
   var is_play_btn = hasClass($('restart'), 'fa-play-circle');
   toggleClass($('restart'), 'fa-play-circle', 'fa-stop-circle');
 
-  if (is_play_btn)
+  if (is_play_btn) {
+    save();
     play();
-  else
+  }
+  else {
     stop();
+  }
 });
 
 $('fullscreen').addEventListener('click', function() {
@@ -328,7 +343,7 @@ GameEditor.prototype.onMouseDown = function(evt) {
   }
 
   if (obj_under_mouse) {
-    if (selected_obj && selected_obj.type == 'sprite') {
+    if (!is_playing && selected_obj && selected_obj.type == 'sprite') {
       obj_under_mouse.img_ix = img_ix;
       obj_under_mouse.sprite_x = selected_obj.x;
       obj_under_mouse.sprite_y = selected_obj.y;
@@ -338,14 +353,16 @@ GameEditor.prototype.onMouseDown = function(evt) {
       fireEvent(obj_under_mouse, 'click');
 
       // toggle selection
-      if (obj_under_mouse == selected_tile)
-        deselect();
-      else
-        select(obj_under_mouse);
+      if (!is_playing) {
+        if (obj_under_mouse == selected_tile)
+          deselect();
+        else
+          select(obj_under_mouse);
+      }
     }
   }
   else {
-    if (selected_obj && selected_obj.type == 'sprite')
+    if (!is_playing && selected_obj && selected_obj.type == 'sprite')
       createTile(pxToGrid(pt.x), pxToGrid(pt.y), selected_obj.x, selected_obj.y, img_ix, selected_obj.types, true);
   }
 };
@@ -374,6 +391,8 @@ GameEditor.prototype.onMouseMove = function(evt) {
     fireEvent(obj_under_mouse, 'mouse enter');
   curr_mouse_over_obj = obj_under_mouse;
 
+  if (is_playing)
+    return;
   if (evt.buttons % 2 != LEFT_BTN)
     return;
   if (document.activeElement && (document.activeElement.tagName == 'TEXTAREA' || document.activeElement.tagName == 'INPUT'))
@@ -424,6 +443,18 @@ GameEditor.prototype.destroy = function() {
 // ];
 
 var game_editor = new GameEditor(ctx);
+if (getQueryVariable('game')) {
+  hideDesignUI();
+  hide('restart');
+
+  var filename = getQueryVariable('game') + '.json';
+  fetch(filename).then(function(res) {
+    return res.json();
+  }).then(async function(game_obj) {
+    await loadGame(game_obj);
+    play();
+  });
+}
 
 function select(obj) {
   if (!obj)
@@ -1028,6 +1059,12 @@ document.addEventListener('keydown', function(evt) {
 function save() {
   if (!game_name)
     game_name = prompt('What would you like to name this game?');
+
+  var json = serializeGame();
+  localStorage.setItem(game_name, json);
+}
+
+function serializeGame() {
   var data = {images: [], levels: levels, types: types};
 
   // serialize functions back to strings manually
@@ -1053,7 +1090,7 @@ function save() {
       data.images[i] = null;
     }
   }
-  localStorage.setItem(game_name, JSON.stringify(data));
+  return JSON.stringify(data);
 }
 
 function serializeEvtHandlers(obj) {
@@ -1074,7 +1111,13 @@ function getAsyncFnBody(fn, name) {
 function load() {
   if (!game_name)
     game_name = prompt('What game would you like to load?');
-  loadGame(game_name);
+  
+  var json = localStorage.getItem(game_name);
+  if (!json)
+    return alert('Sorry, no level with the name "' + game_name + '" exists.');
+
+  var parsed = JSON.parse(json);
+  loadGame(parsed);
 }
 
 function jump() {
@@ -1151,6 +1194,54 @@ function toggleClass(el, class_name, class_name2, class_name3) {
     else
       addClass(el, class_name);
   }
+}
+
+function downloadJSON(json, filename) {
+  var uri = "data:application/json;base64," + btoa(json);
+  var link = document.createElement("a");
+  link.download = filename;
+  link.href = uri;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  delete link;
+}
+
+function getQueryVariable(variable) {
+  var query = window.location.search.substring(1);
+  var vars = query.split('&');
+  for (var i = 0; i < vars.length; i++) {
+    var pair = vars[i].split('=');
+    if (decodeURIComponent(pair[0]) == variable)
+      return decodeURIComponent(pair[1]);
+  }
+}
+
+async function loadGame(parsed) {
+  levels = parsed.levels;
+  types = parsed.types || {};
+
+  var images = parsed.images || [];
+  for (var i = 0; i < images.length; i++) {
+    if (images[i])
+      await loadImage(i, images[i].url, images[i].filename, images[i].sprites);
+  }
+
+  loadLevel(1);
+}
+
+function play() {
+  is_playing = true;
+  hideDesignUI();
+  startLevel();
+}
+function hideDesignUI() {
+  hide('sidebar', 'load', 'save', 'export', 'coords');
+}
+function stop() {
+  is_playing = false;
+  load();
+  show('sidebar', 'load', 'save', 'export', 'coords');
 }
 
 /*function ImageEditor(ctx, img_ix) {
@@ -1376,31 +1467,6 @@ function setStart(x, y) {
     start_y = y * tile_size;
 }
 
-async function loadGame(game_name) {
-  var json = localStorage.getItem(game_name);
-  if (!json)
-    return alert('Sorry, no level with the name "' + game_name + '" exists.');
-  var parsed = JSON.parse(json);
-  levels = parsed.levels;
-  types = parsed.types || {};
-
-  var images = parsed.images || [];
-  for (var i = 0; i < images.length; i++) {
-    if (images[i])
-      await loadImage(i, images[i].url, images[i].filename, images[i].sprites);
-  }
-
-  loadLevel(1);
-}
-
-function play() {
-  save();
-  startLevel();
-}
-function stop() {
-  load();
-}
-
 function loadLevel(level_n) {
   level_num = level_n;
   level = levels[level_num - 1];
@@ -1539,7 +1605,7 @@ function setCursor(cursor_id) {
 
 async function animate(obj, steps, seconds_per_step) {
   for (var step = 0; step < steps; step++) {
-    await timeout(obj, seconds_per_step);
+    await timeout(seconds_per_step, obj);
     obj.sprite_x++;
   }
 }

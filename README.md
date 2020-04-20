@@ -1,22 +1,21 @@
 # Red Planet
 
-An immersive, rapid game builder, including a simple HTML5 game engine.
+An immersive, rapid game builder with a built-in HTML5 game engine.
 
 Features:
 
-- [x] Easy level creation
-- [x] Basic platformer dynamics
-- [x] Gravity-changing blocks (`setGravity(x, y)`)
-- [x] Springs (`setSpeed(0, -20)`)
-- [x] Ability to change block colors (keys 1-9)
-- [x] Ability to set blocks as non-solid (pass-through)
-- [x] Portals (`setPosition(x, y)`)
-- [x] Spikes (`restart()`)
-- [x] Checkpoints (`setStart(x, y)`)
-- [x] Click selected block to deselect
-- [x] Ability to move between levels (`loadLevel(level_name)`)
+- [x] Easy, immersive level creation
+- [x] Basic platformer or top-down dynamics
+- [x] Viewport automatically follows player
+- [x] Gravity & gravity-changing tiles (via `setGravity(0, 1)`)
+- [x] Spring tiles (via `setSpeed(0, -20)`)
+- [x] Solid and pass-through tiles
+- [x] Portals (via `setPosition(x, y)`)
+- [x] Spikes (via `restart()`)
+- [x] Checkpoints (via `setStart(x, y)`)
+- [x] Level exit & portal tiles (via `loadLevel(level_name)`)
 - [x] Image Editor
-- [x] Infinite scrolling
+- [x] Infinite level size
 
 API:
 
@@ -24,8 +23,6 @@ API:
 * `setSpeed(x, y)`
 * `setPosition(x, y)`
 * `setStart(x, y)`
-* `loadGame(game_name)`
-* `restart()`
 * `loadLevel(level_num)`
 * `createTile(grid_x, grid_y, sprite_id)`
 * `cloneTile(tile, overrides)`
