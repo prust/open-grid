@@ -27,7 +27,7 @@ API:
 * `loadGame(game_name)`
 * `restart()`
 * `loadLevel(level_num)`
-* `createTile(grid_x, grid_y, sprite_x, sprite_y, *spritesheet_ix)`
+* `createTile(grid_x, grid_y, sprite_id)`
 * `cloneTile(tile, overrides)`
 * `getTile(grid_x, grid_y)`
 * `deleteTile(tile)`
@@ -36,6 +36,7 @@ API:
 * `await timeout(seconds)`
 * `await animate(obj, steps, seconds_per_step)`
 * `setStatus(str)`
+* `setCursor(cursor_id)`
 
 Tile Properties:
 * `.opacity` (number between 0 and 1)

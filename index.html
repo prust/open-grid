@@ -187,7 +187,7 @@ canvas {
 </div>
 <div id="header">
   <div id="load" class="fa fa-folder-open-o"></div><div id="save" class="fa fa-floppy-o"></div><span id="status"></span><div id="coords"></div>
-  <!--div id="cur_color"></div--><div id="restart" class="fa fa-play-circle-o"></div><div id="fullscreen" class="fa fa-arrows-alt"></div>
+  <!--div id="cur_color"></div--><div id="restart" class="fa fa-play-circle"></div><div id="fullscreen" class="fa fa-arrows-alt"></div>
 </div>
 <script>
 var MAX_VEL = 50;
@@ -210,6 +210,7 @@ var levels = [{objects: [], type: 'level'}];
 var level = null;
 var level_num;
 var types = {};
+var game_name = '';
 
 var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 0};
 loadLevel(1);
@@ -285,7 +286,13 @@ $('save').addEventListener('click', function() {
 });
 
 $('restart').addEventListener('click', function() {
-  restart();
+  var is_play_btn = hasClass($('restart'), 'fa-play-circle');
+  toggleClass($('restart'), 'fa-play-circle', 'fa-stop-circle');
+
+  if (is_play_btn)
+    play();
+  else
+    stop();
 });
 
 $('fullscreen').addEventListener('click', function() {
@@ -339,7 +346,7 @@ GameEditor.prototype.onMouseDown = function(evt) {
   }
   else {
     if (selected_obj && selected_obj.type == 'sprite')
-      createTile(pxToGrid(pt.x), pxToGrid(pt.y), selected_obj.x, selected_obj.y, img_ix, selected_obj.types);
+      createTile(pxToGrid(pt.x), pxToGrid(pt.y), selected_obj.x, selected_obj.y, img_ix, selected_obj.types, true);
   }
 };
 
@@ -374,7 +381,7 @@ GameEditor.prototype.onMouseMove = function(evt) {
   
   if (selected_obj.type == 'sprite') {
     if (!obj_under_mouse) {
-      var obj = createTile(grid_x, grid_y, selected_obj.x, selected_obj.y, img_ix, selected_obj.types);
+      var obj = createTile(grid_x, grid_y, selected_obj.x, selected_obj.y, img_ix, selected_obj.types, true);
     }
     else {
       obj_under_mouse.img_ix = img_ix;
@@ -1019,7 +1026,8 @@ document.addEventListener('keydown', function(evt) {
 // }
 
 function save() {
-  var name = prompt('What would you like to name this game?');
+  if (!game_name)
+    game_name = prompt('What would you like to name this game?');
   var data = {images: [], levels: levels, types: types};
 
   // serialize functions back to strings manually
@@ -1045,7 +1053,7 @@ function save() {
       data.images[i] = null;
     }
   }
-  localStorage.setItem(name, JSON.stringify(data));
+  localStorage.setItem(game_name, JSON.stringify(data));
 }
 
 function serializeEvtHandlers(obj) {
@@ -1064,8 +1072,9 @@ function getAsyncFnBody(fn, name) {
 }
 
 function load() {
-  var name = prompt('What game would you like to load?');
-  loadGame(name);
+  if (!game_name)
+    game_name = prompt('What game would you like to load?');
+  loadGame(game_name);
 }
 
 function jump() {
@@ -1131,6 +1140,17 @@ function removeClass(el, class_name) {
 
   class_names.splice(ix, 1);
   el.className = class_names.join(' ');
+}
+
+function toggleClass(el, class_name, class_name2, class_name3) {
+  var args = Array.from(arguments);
+  args = args.slice(1); // trim off el
+  for (var class_name of args) {
+    if (hasClass(el, class_name))
+      removeClass(el, class_name);
+    else
+      addClass(el, class_name);
+  }
 }
 
 /*function ImageEditor(ctx, img_ix) {
@@ -1365,18 +1385,20 @@ async function loadGame(game_name) {
   types = parsed.types || {};
 
   var images = parsed.images || [];
-  for (var i = 0; i < 10; i++) {
+  for (var i = 0; i < images.length; i++) {
     if (images[i])
       await loadImage(i, images[i].url, images[i].filename, images[i].sprites);
-    else
-      imgs[i] = null;
   }
 
   loadLevel(1);
 }
 
-function restart() {
-  loadLevel(level_num);
+function play() {
+  save();
+  startLevel();
+}
+function stop() {
+  load();
 }
 
 function loadLevel(level_n) {
@@ -1390,14 +1412,16 @@ function loadLevel(level_n) {
   player.vel_x = 0;
   player.accel_x = 0;
   player.accel_y = 0;
+}
 
+function startLevel() {
   fireEvent(level, 'start');
   for (var obj of objects)
     fireEvent(obj, 'create');
 }
 
 // alternate: createTile(grid_x, grid_y, sprite_id)
-function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types) {
+function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types, is_design_time) {
   // if a sprite ID is passed, look it up
   if (typeof sprite_x == 'string') {
     var sprite_id = sprite_x;
@@ -1446,7 +1470,8 @@ function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types) {
   };
 
   objects.push(obj);
-  fireEvent(obj, 'create');
+  if (!is_design_time)
+    fireEvent(obj, 'create');
   return obj;
 }
 
