@@ -33,11 +33,12 @@ body {
   width: 36px;
   border: 1px solid #666666;
 }
-#header .fa {
-  position: absolute; font-size: 25px; color: #ccc; top: 6px;
+#header {
+  color: #ccc;
+  font-size: 25px;
 }
 #header #coords {
-  position: absolute; font-size: 25px; color: #ccc; top: 4px; right: 80px;
+  position: absolute; top: 4px; right: 80px;
 }
 #header .fa:hover {
   color: #999;
@@ -45,15 +46,24 @@ body {
 }
 #header #load {
   left: 6px;
+  margin-left: 6px;
+  margin-right: 6px;
 }
 #header #save {
   left: 45px;
+  margin-left: 6px;
+  margin-right: 6px;
+}
+#header #status {
+  color: #999;
+  margin-left: 6px;
+  margin-right: 6px;
 }
 #header #fullscreen {
-  right: 6px;
+  position: absolute; right: 6px; top: 6px;
 }
 #header #restart {
-  right: 40px;
+  position: absolute; right: 40px; top: 6px;
 }
 
 #sidebar {
@@ -176,7 +186,7 @@ canvas {
   </div>
 </div>
 <div id="header">
-  <div id="load" class="fa fa-folder-open-o"></div><div id="save" class="fa fa-floppy-o"></div><div id="coords"></div>
+  <div id="load" class="fa fa-folder-open-o"></div><div id="save" class="fa fa-floppy-o"></div><span id="status"></span><div id="coords"></div>
   <!--div id="cur_color"></div--><div id="restart" class="fa fa-play-circle-o"></div><div id="fullscreen" class="fa fa-arrows-alt"></div>
 </div>
 <script>
@@ -819,6 +829,8 @@ function setSprite(sprite) {
 
 function viewSpritesheet(ix) {
   img_ix = ix;
+  $('tileset').setAttribute('width', imgs[img_ix].width);
+  $('tileset').setAttribute('height', imgs[img_ix].height);
 }
 
 function getClientLeft(el) {
@@ -1432,6 +1444,10 @@ function setGridY(obj, grid_y) {
   obj.y = grid_y * tile_size;
 }
 
+function setStatus(str) {
+  $('status').innerText = str;
+}
+
 async function animate(obj, steps, seconds_per_step) {
   for (var step = 0; step < steps; step++) {
     await timeout(obj, seconds_per_step);
@@ -1486,7 +1502,18 @@ function fireEvent(obj, evt_name, this_obj) {
 
 async function timeout(seconds, obj) {
   return new Promise(function(resolve, reject) {
-    var timeout_id = setTimeout(resolve, seconds * 1000);
+    var timeout_id = setTimeout(function() {
+      // remove timeout_id from list of active timeout_ids
+      if (obj && obj.timeout_ids) {
+        var ix = obj.timeout_ids.indexOf(timeout_id);
+        if (ix > -1)
+          obj.timeout_ids.splice(ix, 1);
+      }
+
+      resolve();
+    }, seconds * 1000);
+    
+    // add timeout_id to list of active timeout_ids
     if (obj) {
       if (!obj.timeout_ids)
         obj.timeout_ids = [];

@@ -28,6 +28,11 @@ API:
 * `restart()`
 * `loadLevel(level_num)`
 * `createTile(grid_x, grid_y, sprite_x, sprite_y, *spritesheet_ix)`
+* `cloneTile(tile, overrides)`
 * `getTile(grid_x, grid_y)`
+* `deleteTile(tile)`
+* `getGridX/Y(obj)` and `setGridX/Y(obj, new_val)`
 * `fireEvent(object, event_name)`
 * `await timeout(seconds)`
+* `await animate(obj, steps, seconds_per_step)`
+* `setStatus(str)`
