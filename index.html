@@ -714,7 +714,7 @@ function addType(type_name) {
   updateProperties();
 
   // cascade the type addition to all objects using this sprite
-  if (selected_obj.type == 'type') {
+  if (selected_obj.type == 'sprite') {
     cascade(selected_obj, function(obj) {
       if (!obj.types.includes(type_name))
         obj.types.push(type_name)
