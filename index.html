@@ -601,6 +601,15 @@ function draw() {
 }
 
 function update() {
+  for (var obj of objects) {
+    if (obj.vel_x)
+      obj.x += obj.vel_x;
+    if (obj.vel_y)
+      obj.y += obj.vel_y;
+
+    // TODO: delete objects (bullets, etc) when they go outside the world bounds
+  }
+
   // friction/drag
   if (player.vel_x > 0)
     player.vel_x -= 0.1;
@@ -1378,7 +1387,28 @@ function loadLevel(level_n) {
     fireEvent(obj, 'create');
 }
 
+// alternate: createTile(grid_x, grid_y, sprite_id)
 function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types) {
+  // if a sprite ID is passed, look it up
+  if (typeof sprite_x == 'string') {
+    var sprite_id = sprite_x;
+    for (var img_ix = 0; img_ix < imgs.length; ++img_ix) {
+      var img = imgs[img_ix];
+      if (img) {
+        for (var coords in img.sprites) {
+          var sprite = img.sprites[coords];
+          if (sprite.id == sprite_id) {
+            sprite_x = sprite.x;
+            sprite_y = sprite.y;
+            spritesheet_ix = img_ix;
+            if (!types)
+              types = sprite.types || [];
+          }
+        }
+      }
+    }
+  }
+
   if (spritesheet_ix == null)
     spritesheet_ix = 0;
 
