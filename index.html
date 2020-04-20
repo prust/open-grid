@@ -205,7 +205,7 @@ var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 0};
 loadLevel(1);
 var events = {
   level: ['Start'],
-  type: ['Create', 'Collide']
+  type: ['Create', 'Clone', 'Collide']
 };
 select(level);
 
@@ -344,6 +344,8 @@ GameEditor.prototype.onMouseMove = function(evt) {
   if (evt.buttons % 2 != LEFT_BTN)
     return;
   if (curr_sprite == null)
+    return;
+  if (document.activeElement && (document.activeElement.tagName == 'TEXTAREA' || document.activeElement.tagName == 'INPUT'))
     return;
 
   var pt = {x: pt_x, y: pt_y};
@@ -555,7 +557,7 @@ function draw() {
     // draw selection
     if (selected_tile) {
       ctx.strokeStyle = '#3B88FD';
-      ctx.lineWidth=2;
+      ctx.lineWidth = 2;
       ctx.strokeRect(selected_tile.x, selected_tile.y, selected_tile.w, selected_tile.h);
     }
 
@@ -1338,11 +1340,18 @@ function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types) {
   if (spritesheet_ix == null)
     spritesheet_ix = 0;
 
+  if (!types) {
+    var sprite_coords = `${sprite_x},${sprite_y}`;
+    var sprite = imgs[spritesheet_ix].sprites[sprite_coords];
+    if (sprite && sprite.types)
+      types = sprite.types;
+    else
+      types = [];
+  }
+
   x = grid_x * block_size;
   y = grid_y * block_size;
   var obj = {
-    grid_x: grid_x,
-    grid_y, grid_y,
     x: x,
     y: y,
     w: block_size,
@@ -1352,7 +1361,7 @@ function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types) {
     img_ix: spritesheet_ix,
     is_solid: true,
     type: 'tile',
-    types: types || []
+    types: types
   };
 
   objects.push(obj);
@@ -1360,8 +1369,45 @@ function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types) {
   return obj;
 }
 
+function cloneTile(tile) {
+  var new_tile = {};
+  for (var prop in tile) {
+    var val = tile[prop];
+    if (Array.isArray(val))
+      new_tile[prop] = val.slice();
+    else
+      new_tile[prop] = val;
+  }
+  objects.push(new_tile);
+  fireEvent(obj, 'clone');
+  return new_tile;
+}
+
 function getTile(grid_x, grid_y) {
-  return objects.find(obj => obj.grid_x == grid_x && obj.grid_y == grid_y);
+  var x = grid_x * block_size;
+  var y = grid_y * block_size;
+  return objects.find(obj => obj.x == x && obj.y == y);
+}
+
+function getGridX(obj) {
+  return Math.floor(obj.x / block_size);
+}
+function setGridX(obj, grid_x) {
+  obj.x = grid_x * block_size;
+}
+
+function getGridY(obj) {
+  return Math.floor(obj.y / block_size);
+}
+function setGridY(obj, grid_y) {
+  obj.y = grid_y * block_size;
+}
+
+async function animate(obj, steps, seconds) {
+  for (var step = 0; step < steps; step++) {
+    await timeout(seconds);
+    obj.sprite_x++;
+  }
 }
 
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
