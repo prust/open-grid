@@ -199,7 +199,6 @@ var num_tiles_w = 0;
 var num_tiles_h = 0;
 var selected_tile = null;
 var selected_obj = null;
-var curr_sprite = null;
 var curr_mouse_over_obj = null;
 var img_editor = null;
 var start_x = 0;
@@ -324,9 +323,9 @@ GameEditor.prototype.onMouseDown = function(evt) {
   if (obj_under_mouse) {
     if (selected_obj && selected_obj.type == 'sprite') {
       obj_under_mouse.img_ix = img_ix;
-      obj_under_mouse.sprite_x = curr_sprite.x;
-      obj_under_mouse.sprite_y = curr_sprite.y;
-      obj_under_mouse.types = curr_sprite.types.slice(); // deep clone
+      obj_under_mouse.sprite_x = selected_obj.x;
+      obj_under_mouse.sprite_y = selected_obj.y;
+      obj_under_mouse.types = selected_obj.types.slice(); // deep clone
     }
     else {
       fireEvent(obj_under_mouse, 'click');
@@ -339,8 +338,8 @@ GameEditor.prototype.onMouseDown = function(evt) {
     }
   }
   else {
-    if (curr_sprite != null)
-      createTile(pxToGrid(pt.x), pxToGrid(pt.y), curr_sprite.x, curr_sprite.y, img_ix, curr_sprite.types);
+    if (selected_obj && selected_obj.type == 'sprite')
+      createTile(pxToGrid(pt.x), pxToGrid(pt.y), selected_obj.x, selected_obj.y, img_ix, selected_obj.types);
   }
 };
 
@@ -370,19 +369,19 @@ GameEditor.prototype.onMouseMove = function(evt) {
 
   if (evt.buttons % 2 != LEFT_BTN)
     return;
-  if (curr_sprite == null)
-    return;
   if (document.activeElement && (document.activeElement.tagName == 'TEXTAREA' || document.activeElement.tagName == 'INPUT'))
     return;
   
-  if (!obj_under_mouse) {
-    var obj = createTile(grid_x, grid_y, curr_sprite.x, curr_sprite.y, img_ix, curr_sprite.types);
-  }
-  else if (curr_sprite != null) {
-    obj_under_mouse.img_ix = img_ix;
-    obj_under_mouse.sprite_x = curr_sprite.x;
-    obj_under_mouse.sprite_y = curr_sprite.y;
-    obj_under_mouse.types = curr_sprite.types.slice(); // deep clone
+  if (selected_obj.type == 'sprite') {
+    if (!obj_under_mouse) {
+      var obj = createTile(grid_x, grid_y, selected_obj.x, selected_obj.y, img_ix, selected_obj.types);
+    }
+    else {
+      obj_under_mouse.img_ix = img_ix;
+      obj_under_mouse.sprite_x = selected_obj.x;
+      obj_under_mouse.sprite_y = selected_obj.y;
+      obj_under_mouse.types = selected_obj.types.slice(); // deep clone
+    }
   }
 };
 
@@ -846,17 +845,14 @@ $('tileset').addEventListener('click', function(evt) {
   var curr_sprite_y = pxToGrid(y);
 
   // toggle selection on click of sprite
-  if (selected_obj.type == 'sprite' && selected_obj.x == curr_sprite_x && selected_obj.y == curr_sprite_y) {
-    curr_sprite = null;
+  if (selected_obj.type == 'sprite' && selected_obj.x == curr_sprite_x && selected_obj.y == curr_sprite_y)
     return deselect();
-  }
   
   var sprite = getSprite(curr_sprite_x, curr_sprite_y);
   if (!sprite) {
     sprite = {type: 'sprite', id: '', x: curr_sprite_x, y: curr_sprite_y, types: []};
     setSprite(sprite);
   }
-  curr_sprite = sprite;
   select(sprite);
 });
 
@@ -971,14 +967,10 @@ function renderTileset() {
   tileset_ctx.drawImage(imgs[img_ix], 0, 0);
 
   // outline currently selected tile in tileset
-  if (curr_sprite) {
-    if (curr_sprite == selected_obj)
-      tileset_ctx.strokeStyle = '#3B88FD'; // selected styling
-    else
-      tileset_ctx.strokeStyle = '#FFFFFF'; // white "current" styling
-
+  if (selected_obj.type == 'sprite') {
+    tileset_ctx.strokeStyle = '#3B88FD'; // selected styling
     tileset_ctx.lineWidth = 2;
-    tileset_ctx.strokeRect(curr_sprite.x * tile_size, curr_sprite.y * tile_size, tile_size, tile_size);
+    tileset_ctx.strokeRect(selected_obj.x * tile_size, selected_obj.y * tile_size, tile_size, tile_size);
   }
 }
 
