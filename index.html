@@ -184,7 +184,7 @@ var MAX_VEL = 50;
 
 var grid_width = 100;
 var grid_height = 100;
-var block_size = 16;
+var tile_size = 16;
 var num_tiles_w = 0;
 var num_tiles_h = 0;
 var selected_tile = null;
@@ -205,7 +205,7 @@ var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 0};
 loadLevel(1);
 var events = {
   level: ['Start'],
-  type: ['Create', 'Clone', 'Collide']
+  type: ['Create', 'Collide']
 };
 select(level);
 
@@ -551,7 +551,7 @@ function draw() {
     for (var i = 0; i < objects.length; i++) {
       var obj = objects[i];
       if (imgs[obj.img_ix])
-        ctx.drawImage(imgs[obj.img_ix], obj.sprite_x * block_size, obj.sprite_y * block_size, block_size, block_size, obj.x, obj.y, block_size, block_size);
+        ctx.drawImage(imgs[obj.img_ix], obj.sprite_x * tile_size, obj.sprite_y * tile_size, tile_size, tile_size, obj.x, obj.y, tile_size, tile_size);
     }
 
     // draw selection
@@ -563,7 +563,7 @@ function draw() {
 
     // draw player
     // ctx.beginPath();
-    // var radius = block_size / 2;
+    // var radius = tile_size / 2;
     // ctx.arc(Math.floor(player.x) + radius, Math.floor(player.y) + radius, radius, 0, 2 * Math.PI, false);
     // ctx.fillStyle = '#5b99f4';
     // ctx.fill();
@@ -607,7 +607,7 @@ function update() {
   for (var i = 0; i < objects.length; i++) {
     var obj = objects[i];
     var intersection = getIntersection(
-      {x1: player.x, x2: player.x + block_size, y1: player.y, y2: player.y + block_size},
+      {x1: player.x, x2: player.x + tile_size, y1: player.y, y2: player.y + tile_size},
       {x1: obj.x, x2: obj.x + obj.w, y1: obj.y, y2: obj.y + obj.h}
     );
     if (intersection) {
@@ -673,7 +673,7 @@ function getIntersection(rect1, rect2) {
 }
 
 function pxToGrid(px) {
-  return Math.floor(px / block_size);
+  return Math.floor(px / tile_size);
 }
 
 $('code').addEventListener('blur', onBlur);
@@ -796,16 +796,26 @@ $('tileset').addEventListener('click', function(evt) {
     return deselect();
   }
   
-  var sprite_coords = `${curr_sprite_x},${curr_sprite_y}`;
-  var sprites = imgs[img_ix].sprites;
-  var sprite = sprites[sprite_coords];
+  var sprite = getSprite(curr_sprite_x, curr_sprite_y);
   if (!sprite) {
     sprite = {type: 'sprite', id: '', x: curr_sprite_x, y: curr_sprite_y, types: []};
-    sprites[sprite_coords] = sprite;
+    setSprite(sprite);
   }
   curr_sprite = sprite;
   select(sprite);
 });
+
+function getSprite(sprite_x, sprite_y) {
+  var sprite_coords = `${sprite_x},${sprite_y}`;
+  var sprites = imgs[img_ix].sprites;
+  return sprites[sprite_coords];
+}
+
+function setSprite(sprite) {
+  var sprite_coords = `${sprite.x},${sprite.y}`;
+  var sprites = imgs[img_ix].sprites;
+  sprites[sprite_coords] = sprite;
+}
 
 function viewSpritesheet(ix) {
   img_ix = ix;
@@ -863,15 +873,15 @@ async function loadImage(img_ix, data_url, filename, sprites) {
       // TODO: add an opt-out checkbox in case users are adding lots of images?
       // Or, instead, allow different grid sizes on each spritesheet via num_cols/num_rows text boxes
       var misaligned_dimensions = [];
-      if (img.width % block_size)
+      if (img.width % tile_size)
         misaligned_dimensions.push(`width (${img.width})`);
-      if (img.height % block_size)
+      if (img.height % tile_size)
         misaligned_dimensions.push(`height (${img.height})`)
       if (misaligned_dimensions.length)
-        alert(`Warning: tileset image ${misaligned_dimensions.join(', ')} does not align with tile size (${block_size})`);
+        alert(`Warning: tileset image ${misaligned_dimensions.join(', ')} does not align with tile size (${tile_size})`);
 
-      num_tiles_w = Math.ceil(img.width / block_size);
-      num_tiles_h = Math.ceil(img.height / block_size);
+      num_tiles_w = Math.ceil(img.width / tile_size);
+      num_tiles_h = Math.ceil(img.height / tile_size);
       $('tileset').setAttribute('width', img.width);
       $('tileset').setAttribute('height', img.height);
       renderTileset();
@@ -909,7 +919,7 @@ function renderTileset() {
       tileset_ctx.strokeStyle = '#FFFFFF'; // white "current" styling
 
     tileset_ctx.lineWidth = 2;
-    tileset_ctx.strokeRect(curr_sprite.x * block_size, curr_sprite.y * block_size, block_size, block_size);
+    tileset_ctx.strokeRect(curr_sprite.x * tile_size, curr_sprite.y * tile_size, tile_size, tile_size);
   }
 }
 
@@ -1082,7 +1092,7 @@ function removeClass(el, class_name) {
   this.is_drawing = false;
   this.is_erasing = false;
   if (!imgs[img_ix]) {
-    imgs[img_ix] = ctx.createImageData(block_size, block_size);
+    imgs[img_ix] = ctx.createImageData(tile_size, tile_size);
 
     // pre-fill new images to all-white
     var data = imgs[img_ix].data;
@@ -1130,7 +1140,7 @@ ImageEditor.prototype.onMouseDown = function(evt) {
   var y = Math.floor((evt.pageY - this.y) / this.px_size);
 
   // user clicked outside the image size
-  if (x < 0 || x >= block_size || y < 0 || y >= block_size)
+  if (x < 0 || x >= tile_size || y < 0 || y >= tile_size)
     return;
 
   if (this.isPixel(x, y, this.color_ix)) {
@@ -1156,7 +1166,7 @@ ImageEditor.prototype.onMouseMove = function(evt) {
   var y = Math.floor((evt.pageY - this.y) / this.px_size);
 
   // user is dragging outside the image size
-  if (x < 0 || x >= block_size || y < 0 || y >= block_size)
+  if (x < 0 || x >= tile_size || y < 0 || y >= tile_size)
     return;
 
   if (this.is_erasing)
@@ -1227,8 +1237,8 @@ ImageEditor.prototype.updateColorIndicator = function() {
 };
 
 ImageEditor.prototype.fill = function(color_ix) {
-  for (var x = 0; x < block_size; x++)
-    for (var y = 0; y < block_size; y++)
+  for (var x = 0; x < tile_size; x++)
+    for (var y = 0; y < tile_size; y++)
       this.setPixel(x, y, color_ix);
 };
 
@@ -1243,7 +1253,7 @@ ImageEditor.prototype.draw = function() {
 
   this.ctx.strokeStyle = '#000000';
   this.ctx.lineWidth = 1;
-  this.ctx.strokeRect(1 + this.x, 1 + this.y, this.px_size * block_size, this.px_size * block_size);
+  this.ctx.strokeRect(1 + this.x, 1 + this.y, this.px_size * tile_size, this.px_size * tile_size);
   this.ctx.lineWidth = 0;
 };
 
@@ -1284,16 +1294,16 @@ function setSpeed(x, y) {
 
 function setPosition(x, y) {
   if (x != null)
-    player.x = x * block_size;
+    player.x = x * tile_size;
   if (y != null)
-    player.y = y * block_size;
+    player.y = y * tile_size;
 }
 
 function setStart(x, y) {
   if (x != null)
-    start_x = x * block_size;
+    start_x = x * tile_size;
   if (y != null)
-    start_y = y * block_size;
+    start_y = y * tile_size;
 }
 
 async function loadGame(game_name) {
@@ -1341,21 +1351,20 @@ function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types) {
     spritesheet_ix = 0;
 
   if (!types) {
-    var sprite_coords = `${sprite_x},${sprite_y}`;
-    var sprite = imgs[spritesheet_ix].sprites[sprite_coords];
+    var sprite = getSprite(sprite_x, sprite_y);
     if (sprite && sprite.types)
       types = sprite.types;
     else
       types = [];
   }
 
-  x = grid_x * block_size;
-  y = grid_y * block_size;
+  x = grid_x * tile_size;
+  y = grid_y * tile_size;
   var obj = {
     x: x,
     y: y,
-    w: block_size,
-    h: block_size,
+    w: tile_size,
+    h: tile_size,
     sprite_x: sprite_x,
     sprite_y: sprite_y,
     img_ix: spritesheet_ix,
@@ -1369,43 +1378,54 @@ function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types) {
   return obj;
 }
 
-function cloneTile(tile) {
+function cloneTile(tile, overrides) {
   var new_tile = {};
   for (var prop in tile) {
     var val = tile[prop];
+    if (prop in overrides)
+      val = overrides[prop];
+
     if (Array.isArray(val))
       new_tile[prop] = val.slice();
     else
       new_tile[prop] = val;
   }
+
+  // if types are explicit and sprite_x/y are
+  // then types should be derived from the new sprite_x/y
+  if (!('types' in overrides) && ('sprite_x' in overrides || 'sprite_y' in overrides)) {
+    var sprite = getSprite(new_tile.sprite_x, new_tile.sprite_y);
+    new_tile.types = (sprite && sprite.types) || [];
+  }
+
   objects.push(new_tile);
-  fireEvent(obj, 'clone');
+  fireEvent(new_tile, 'create');
   return new_tile;
 }
 
 function getTile(grid_x, grid_y) {
-  var x = grid_x * block_size;
-  var y = grid_y * block_size;
+  var x = grid_x * tile_size;
+  var y = grid_y * tile_size;
   return objects.find(obj => obj.x == x && obj.y == y);
 }
 
 function getGridX(obj) {
-  return Math.floor(obj.x / block_size);
+  return Math.floor(obj.x / tile_size);
 }
 function setGridX(obj, grid_x) {
-  obj.x = grid_x * block_size;
+  obj.x = grid_x * tile_size;
 }
 
 function getGridY(obj) {
-  return Math.floor(obj.y / block_size);
+  return Math.floor(obj.y / tile_size);
 }
 function setGridY(obj, grid_y) {
-  obj.y = grid_y * block_size;
+  obj.y = grid_y * tile_size;
 }
 
-async function animate(obj, steps, seconds) {
+async function animate(obj, steps, seconds_per_step) {
   for (var step = 0; step < steps; step++) {
-    await timeout(seconds);
+    await timeout(seconds_per_step);
     obj.sprite_x++;
   }
 }
