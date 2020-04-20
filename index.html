@@ -942,10 +942,9 @@ document.addEventListener('keydown', function(evt) {
   else if (evt.keyCode == DOWN && player.accel_x != 0)
     player.vel_y = 5;
   else if (evt.keyCode == DEL && selected_tile) {
-    var ix = objects.indexOf(selected_tile);
-    if (ix > -1)
-      objects.splice(ix, 1);
+    var tile = selected_tile;
     deselect();
+    deleteTile(tile);
   }
   else if (evt.keyCode == ESC) {
     if (img_editor) {
@@ -1370,7 +1369,8 @@ function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types) {
     img_ix: spritesheet_ix,
     is_solid: true,
     type: 'tile',
-    types: types
+    types: types,
+    timeout_ids: null
   };
 
   objects.push(obj);
@@ -1403,6 +1403,15 @@ function cloneTile(tile, overrides) {
   return new_tile;
 }
 
+function deleteTile(tile) {
+  var ix = objects.indexOf(tile);
+  if (ix > -1)
+    objects.splice(ix, 1);
+
+  if (tile.timeout_ids)
+    tile.timeout_ids.forEach(id => clearTimeout(id));
+}
+
 function getTile(grid_x, grid_y) {
   var x = grid_x * tile_size;
   var y = grid_y * tile_size;
@@ -1425,7 +1434,7 @@ function setGridY(obj, grid_y) {
 
 async function animate(obj, steps, seconds_per_step) {
   for (var step = 0; step < steps; step++) {
-    await timeout(seconds_per_step);
+    await timeout(obj, seconds_per_step);
     obj.sprite_x++;
   }
 }
@@ -1475,9 +1484,14 @@ function fireEvent(obj, evt_name, this_obj) {
   }
 }
 
-async function timeout(seconds) {
+async function timeout(seconds, obj) {
   return new Promise(function(resolve, reject) {
-    setTimeout(resolve, seconds * 1000);
+    var timeout_id = setTimeout(resolve, seconds * 1000);
+    if (obj) {
+      if (!obj.timeout_ids)
+        obj.timeout_ids = [];
+      obj.timeout_ids.push(timeout_id);
+    }
   });
 }
 
