@@ -608,6 +608,22 @@ function update() {
       obj.y += obj.vel_y;
 
     // TODO: delete objects (bullets, etc) when they go outside the world bounds
+    
+    if (obj.vel_x || obj.vel_y) {
+      for (var obj2 of objects) {
+        if (obj == obj2)
+          continue;
+
+        var collides = getIntersection(
+          {x1: obj.x, x2: obj.x + obj.w, y1: obj.y, y2: obj.y + obj.h},
+          {x1: obj2.x, x2: obj2.x + obj2.w, y1: obj2.y, y2: obj2.y + obj2.h}
+        );
+        if (collides) {
+          fireEvent(obj, 'collide', null, obj2);
+          fireEvent(obj2, 'collide', null, obj);
+        }
+      }
+    }
   }
 
   // friction/drag
@@ -824,9 +840,8 @@ $('tileset').addEventListener('click', function(evt) {
   if (!imgs.length)
     return;
 
-  // if we make the tileset map scrollable, we may need to use pageX
-  var x = evt.clientX - getClientLeft(evt.target);
-  var y = evt.clientY - getClientTop(evt.target);
+  var x = evt.pageX - getClientLeft(evt.target);
+  var y = evt.pageY - getClientTop(evt.target);
   var curr_sprite_x = pxToGrid(x);
   var curr_sprite_y = pxToGrid(y);
 
@@ -868,6 +883,7 @@ function getClientLeft(el) {
 
   while (el) {
     offset += parseInt(el.offsetLeft);
+    offset -= el.scrollLeft;
     el = el.offsetParent;         
   }
   return offset;
@@ -878,6 +894,7 @@ function getClientTop(el) {
 
   while (el) {
     offset += parseInt(el.offsetTop);
+    offset -= el.scrollTop;
     el = el.offsetParent;         
   }
   return offset;
@@ -1511,12 +1528,12 @@ async function animate(obj, steps, seconds_per_step) {
 }
 
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-function fireEvent(obj, evt_name, this_obj) {
+function fireEvent(obj, evt_name, this_obj, data) {
   if (obj.type == 'tile') {
     for (var type_name of obj.types) {
       var type = types[type_name];
       if (type)
-        fireEvent(type, evt_name, obj);
+        fireEvent(type, evt_name, obj, data);
     }
     return;
   }
@@ -1536,9 +1553,9 @@ function fireEvent(obj, evt_name, this_obj) {
 
   try {
     if (typeof(obj[handler_name]) != 'function')
-      obj[handler_name] = new AsyncFunction(obj[handler_name]);
+      obj[handler_name] = new AsyncFunction('other', obj[handler_name]);
 
-    obj[handler_name].call(this_obj);
+    obj[handler_name].call(this_obj, data);
   }
   catch(err) {
     alert(err.message);
