@@ -17,6 +17,17 @@ Features:
 - [x] Image Editor
 - [x] Infinite level size
 
+# Red Planet API
+
+The API (and any HTML5 APIs) can be accessed in the event handlers in the editor. Function arguments with an `*` before them are optional.
+
+General API:
+* `loadLevel(level_num)`
+* `await timeout(seconds)`
+* `setStatus(message)`
+* `setCursor(cursor_id)`
+* `alert(message)`
+
 Player API:
 
 * `setGravity(x, y)`
@@ -25,20 +36,13 @@ Player API:
 * `setStart(x, y)`
 
 Tile API:
-* `createTile(grid_x, grid_y, sprite_id, *layer_ix)` (layer_id defaults to ID of lowest layer)
+* `createTile(grid_x, grid_y, sprite_id, *layer_id)` (`layer_id` defaults to ID of lowest layer)
 * `cloneTile(tile, *overrides)`
 * `getTile(grid_x, grid_y)`
 * `deleteTile(tile)`
 * `getGridX/Y(tile)` and `setGridX/Y(tile, new_value)`
 * `fireEvent(tile, event_name)`
 * `await animate(tile, steps, seconds_per_step)`
-
-General API:
-* `loadLevel(level_num)`
-* `await timeout(seconds)`
-* `setStatus(message)`
-* `setCursor(cursor_id)`
-* `alert(message)`
 
 Tile Properties:
 * `.opacity` (number between 0 and 1)
@@ -48,4 +52,4 @@ Tile Properties:
 * `.img_ix` (which spritesheet to look for sprite, indexes start at 0)
 * `.types` (array of type strings, used for ECS)
 * `.is_solid` (true/false; whether it passes through other solid objects)
-* `.layer_id` (numeric Layer ID)
+* `.layer_id` (numeric layer ID)
