@@ -200,6 +200,7 @@ var num_tiles_h = 0;
 var selected_tile = null;
 var selected_obj = null;
 var curr_sprite = null;
+var curr_mouse_over_obj = null;
 var img_editor = null;
 var start_x = 0;
 var start_y = 0;
@@ -215,7 +216,7 @@ var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 0};
 loadLevel(1);
 var events = {
   level: ['Start'],
-  type: ['Create', 'Collide']
+  type: ['Create', 'Collide', 'Click', 'Mouse Enter', 'Mouse Leave']
 };
 select(level);
 
@@ -328,6 +329,8 @@ GameEditor.prototype.onMouseDown = function(evt) {
       obj_under_mouse.types = curr_sprite.types.slice(); // deep clone
     }
     else {
+      fireEvent(obj_under_mouse, 'click');
+
       // toggle selection
       if (obj_under_mouse == selected_tile)
         deselect();
@@ -352,20 +355,25 @@ GameEditor.prototype.onMouseMove = function(evt) {
   if ($('coords').innerText != coords)
     $('coords').innerText = coords;
 
+  var pt = {x: pt_x, y: pt_y};
+  var obj_under_mouse;
+  for (var obj of objects)
+    if (intersectsPoint(obj, pt))
+      obj_under_mouse = obj;
+
+  var has_changed = curr_mouse_over_obj != obj_under_mouse;
+  if (has_changed && curr_mouse_over_obj)
+    fireEvent(curr_mouse_over_obj, 'mouse leave');
+  if (has_changed && obj_under_mouse)
+    fireEvent(obj_under_mouse, 'mouse enter');
+  curr_mouse_over_obj = obj_under_mouse;
+
   if (evt.buttons % 2 != LEFT_BTN)
     return;
   if (curr_sprite == null)
     return;
   if (document.activeElement && (document.activeElement.tagName == 'TEXTAREA' || document.activeElement.tagName == 'INPUT'))
     return;
-
-  var pt = {x: pt_x, y: pt_y};
-  var obj_under_mouse;
-  for (var i = 0; i < objects.length; i++) {
-    var obj = objects[i];
-    if (intersectsPoint(obj, pt))
-      obj_under_mouse = obj;
-  }
   
   if (!obj_under_mouse) {
     var obj = createTile(grid_x, grid_y, curr_sprite.x, curr_sprite.y, img_ix, curr_sprite.types);
@@ -499,20 +507,18 @@ function updateProperties() {
     hide('types_properties');
   }
 
+  var show_evt_props = selected_obj.type == 'type' || selected_obj.type == 'level';
+
+  if (show_evt_props) {
+    var evts = events[selected_obj.type];
+    var opts = evts.map(name => [`On ${name}`, name.toLowerCase()]);
+    setSelectOptions($('event'), opts);
+    updateCode();
+  }
+
   for (var el of $$('event_properties')) {
-    if (selected_obj.type == 'type' || selected_obj.type == 'level') {
-      var evts = events[selected_obj.type];
-      var opts = evts.map(name => [`On ${name}`, name.toLowerCase()]);
-      setSelectOptions($('event'), opts);
-
-      var evt_handler_name = 'on_' + $('event').value;
-      var evt_handler = selected_obj[evt_handler_name];
-      if (typeof(evt_handler) == 'function')
-        evt_handler = getAsyncFnBody(evt_handler, evt_handler_name);
-      $('code').value = evt_handler || '';
-
+    if (show_evt_props)
       show(el);
-    }
     else
       hide(el);
   }
@@ -526,6 +532,14 @@ function updateProperties() {
   }
   
   // $('edit-img').textContent = 'Edit Image ' + /*obj.type*/;
+}
+
+function updateCode() {
+  var evt_handler_name = 'on_' + $('event').value;
+  var evt_handler = selected_obj[evt_handler_name];
+  if (typeof(evt_handler) == 'function')
+    evt_handler = getAsyncFnBody(evt_handler, evt_handler_name);
+  $('code').value = evt_handler || '';
 }
 
 function setSelectOptions(sel, options) {
@@ -560,8 +574,13 @@ function draw() {
     // draw blocks on the grid
     for (var i = 0; i < objects.length; i++) {
       var obj = objects[i];
-      if (imgs[obj.img_ix])
+      if (imgs[obj.img_ix]) {
+        if ('opacity' in obj)
+          ctx.globalAlpha = obj.opacity;
         ctx.drawImage(imgs[obj.img_ix], obj.sprite_x * tile_size, obj.sprite_y * tile_size, tile_size, tile_size, obj.x, obj.y, tile_size, tile_size);
+        if ('opacity' in obj)
+          ctx.globalAlpha = 1;
+      }
     }
 
     // draw selection
@@ -685,6 +704,8 @@ function getIntersection(rect1, rect2) {
 function pxToGrid(px) {
   return Math.floor(px / tile_size);
 }
+
+$('event').addEventListener('change', updateCode);
 
 $('code').addEventListener('blur', onBlur);
 $('code').addEventListener('change', onBlur);
@@ -1446,6 +1467,10 @@ function setGridY(obj, grid_y) {
 
 function setStatus(str) {
   $('status').innerText = str;
+}
+
+function setCursor(cursor_id) {
+  $('canvas').style.cursor = cursor_id;
 }
 
 async function animate(obj, steps, seconds_per_step) {

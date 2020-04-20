@@ -36,3 +36,12 @@ API:
 * `await timeout(seconds)`
 * `await animate(obj, steps, seconds_per_step)`
 * `setStatus(str)`
+
+Tile Properties:
+* `.opacity` (number between 0 and 1)
+* `.x` and `.y` (number of pixels from top-left corner)
+* `.w` and `.h` (width and height, in pixels)
+* `.sprite_x` and `.sprite_y` (coordinates of the sprite to draw)
+* `.img_ix` (which spritesheet to look for sprite, indexes start at 0)
+* `.types` (array of type strings, used for ECS)
+* `.is_solid` (true/false; whether it passes through other solid objects)
