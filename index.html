@@ -101,14 +101,14 @@ body {
 #sidebar #props_panel {
   position: absolute;
   top: 0;
-  bottom: 50%;
+  bottom: 60%;
   left: 0;
   right: 0;
   padding: 10px;
 }
 #sidebar #sprites_panel {
   position: absolute;
-  top: 50%;
+  top: 40%;
   bottom: 0;
   left: 0;
   right: 0;
@@ -176,6 +176,9 @@ canvas {
   </div>
 
   <div id="sprites_panel" class="panel">
+    Layer: <select id="layers"></select> <button id="toggle_layer"></button> <button id="new_layer">New Layer</button><br>
+    <button id="layer_up">Move Up</button> <button id="layer_down">Move Down</button> <button id="delete_layer">Delete Layer</button>
+
     <h3>Spritesheets</h3>
     <label for="add-img">Add Spritesheet:</label>
     <input type="file" id="add-img"><br><br>
@@ -212,8 +215,9 @@ var start_y = 0;
 var imgs = [];
 var img_ix = null;
 var zoom = 2;
-var levels = [{objects: [], type: 'level'}];
+var levels = [{objects: [], type: 'level', layers: [{id: 1, order: 0, visible: true}]}];
 var level = null;
+var layer = null;
 var level_num;
 var types = {};
 var game_name = '';
@@ -335,15 +339,18 @@ GameEditor.prototype.onMouseDown = function(evt) {
     y: Math.floor((evt.pageY + viewport.transform_y) / zoom)
   };
 
+  var paint_mode = !is_playing && selected_obj && selected_obj.type == 'sprite';
+
   var obj_under_mouse;
   for (var i = 0; i < objects.length; i++) {
     var obj = objects[i];
     if (intersectsPoint(obj, pt))
-      obj_under_mouse = obj;
+      if (!paint_mode || obj.layer_id == layer.id)
+        obj_under_mouse = obj;
   }
 
   if (obj_under_mouse) {
-    if (!is_playing && selected_obj && selected_obj.type == 'sprite') {
+    if (paint_mode) {
       obj_under_mouse.img_ix = img_ix;
       obj_under_mouse.sprite_x = selected_obj.x;
       obj_under_mouse.sprite_y = selected_obj.y;
@@ -362,8 +369,8 @@ GameEditor.prototype.onMouseDown = function(evt) {
     }
   }
   else {
-    if (!is_playing && selected_obj && selected_obj.type == 'sprite')
-      createTile(pxToGrid(pt.x), pxToGrid(pt.y), selected_obj.x, selected_obj.y, img_ix, selected_obj.types, true);
+    if (paint_mode)
+      createTileInternal(pxToGrid(pt.x), pxToGrid(pt.y), selected_obj.x, selected_obj.y, img_ix, selected_obj.types);
   }
 };
 
@@ -373,6 +380,8 @@ GameEditor.prototype.onMouseMove = function(evt) {
   var pt_y = Math.floor((evt.pageY + viewport.transform_y) / zoom);
   var grid_x = pxToGrid(pt_x);
   var grid_y = pxToGrid(pt_y);
+
+  var paint_mode = !is_playing && selected_obj && selected_obj.type == 'sprite';
   
   var coords = grid_x + ', ' + grid_y;
   if ($('coords').innerText != coords)
@@ -382,7 +391,8 @@ GameEditor.prototype.onMouseMove = function(evt) {
   var obj_under_mouse;
   for (var obj of objects)
     if (intersectsPoint(obj, pt))
-      obj_under_mouse = obj;
+      if (!paint_mode || obj.layer_id == layer.id)
+        obj_under_mouse = obj;
 
   var has_changed = curr_mouse_over_obj != obj_under_mouse;
   if (has_changed && curr_mouse_over_obj)
@@ -391,16 +401,14 @@ GameEditor.prototype.onMouseMove = function(evt) {
     fireEvent(obj_under_mouse, 'mouse enter');
   curr_mouse_over_obj = obj_under_mouse;
 
-  if (is_playing)
-    return;
   if (evt.buttons % 2 != LEFT_BTN)
     return;
   if (document.activeElement && (document.activeElement.tagName == 'TEXTAREA' || document.activeElement.tagName == 'INPUT'))
     return;
   
-  if (selected_obj.type == 'sprite') {
+  if (paint_mode) {
     if (!obj_under_mouse) {
-      var obj = createTile(grid_x, grid_y, selected_obj.x, selected_obj.y, img_ix, selected_obj.types, true);
+      var obj = createTileInternal(grid_x, grid_y, selected_obj.x, selected_obj.y, img_ix, selected_obj.types);
     }
     else {
       obj_under_mouse.img_ix = img_ix;
@@ -460,21 +468,21 @@ function select(obj) {
   if (!obj)
     throw new Error('select() called with no object');
 
-  // this runs before blur, save before updateProperties() blows the code away
+  // this runs before blur, save before updatePropertiesUI() blows the code away
   if (document.activeElement.tagName == 'TEXTAREA')
     saveCode();
 
   selected_obj = obj;
   selected_tile = obj.type == 'tile' ? obj : null;
-  updateProperties();
-  renderTileset();
+  updatePropertiesUI();
+  updateTilesetUI();
 }
 
 function deselect() {
   select(level);
 }
 
-function updateProperties() {
+function updatePropertiesUI() {
   if (selected_tile) {
     $('properties_heading').innerText = 'Object Properties';
   }
@@ -522,7 +530,7 @@ function updateProperties() {
         if (type_ix == -1)
           throw new Error(`Remove type clicked but type ${type_name} not found in ${selected_obj.types}`);
         selected_obj.types.splice(type_ix, 1);
-        updateProperties();
+        updatePropertiesUI();
 
         if (selected_obj.type == 'sprite') {
           cascade(selected_obj, function(obj) {
@@ -536,7 +544,7 @@ function updateProperties() {
 
     var type_opts = [['Select:', 'CHOOSE_TYPE']];
     type_opts = type_opts.concat(Object.keys(types).map(name => [name, name]));
-    setSelectOptions($('add_types'), type_opts);
+    setSelectOptions('add_types', type_opts);
 
     show('types_properties');
   }
@@ -549,7 +557,7 @@ function updateProperties() {
   if (show_evt_props) {
     var evts = events[selected_obj.type];
     var opts = evts.map(name => [`On ${name}`, name.toLowerCase()]);
-    setSelectOptions($('event'), opts);
+    setSelectOptions('event', opts);
     updateCode();
   }
 
@@ -571,6 +579,36 @@ function updateProperties() {
   // $('edit-img').textContent = 'Edit Image ' + /*obj.type*/;
 }
 
+function updateLayerUI() {
+  var opts = level.layers.map(l => [l.id, l.id]);
+  setSelectOptions('layers', opts);
+  $('layers').value = layer.id;
+
+  var layer_ix = level.layers.indexOf(layer);
+  $('layer_up').disabled = layer_ix == level.layers.length - 1;
+  $('layer_down').disabled = layer_ix == 0;
+  $('delete_layer').disabled = level.layers.length == 1;
+  $('toggle_layer').innerText = layer.visible ? 'Hide' : 'Show';
+}
+
+function updateTilesetUI() {
+  if (!(imgs[img_ix] instanceof HTMLImageElement))
+    return;
+
+  var canvas = $('tileset');
+  var tileset_ctx = canvas.getContext('2d');
+  tileset_ctx.clearRect(0, 0, canvas.width, canvas.height);
+  tileset_ctx.imageSmoothingEnabled = false;
+  tileset_ctx.drawImage(imgs[img_ix], 0, 0);
+
+  // outline currently selected tile in tileset
+  if (selected_obj.type == 'sprite') {
+    tileset_ctx.strokeStyle = '#3B88FD'; // selected styling
+    tileset_ctx.lineWidth = 2;
+    tileset_ctx.strokeRect(selected_obj.x * tile_size, selected_obj.y * tile_size, tile_size, tile_size);
+  }
+}
+
 function updateCode() {
   var evt_handler_name = 'on_' + $('event').value;
   var evt_handler = selected_obj[evt_handler_name];
@@ -580,6 +618,8 @@ function updateCode() {
 }
 
 function setSelectOptions(sel, options) {
+  var sel = $(sel);
+
   // remove old options
   while (sel.options.length)
     sel.removeChild(sel.options[0]);
@@ -592,6 +632,8 @@ function setSelectOptions(sel, options) {
     sel.appendChild(opt); 
   }
 }
+
+
 
 requestAnimationFrame(draw);
 function draw() {
@@ -608,10 +650,18 @@ function draw() {
   else {
     update();
 
-    // draw blocks on the grid
-    for (var i = 0; i < objects.length; i++) {
-      var obj = objects[i];
-      if (imgs[obj.img_ix]) {
+    // draw blocks on each layer the grid
+
+    for (var layer of level.layers) {
+      if (!layer.visible)
+        continue;
+
+      for (var obj of objects) {
+        if (obj.layer_id != layer.id)
+          continue;
+        if (!imgs[obj.img_ix])
+          continue;
+
         if ('opacity' in obj)
           ctx.globalAlpha = obj.opacity;
         ctx.drawImage(imgs[obj.img_ix], obj.sprite_x * tile_size, obj.sprite_y * tile_size, tile_size, tile_size, obj.x, obj.y, tile_size, tile_size);
@@ -797,7 +847,7 @@ $('new_type').addEventListener('click', function() {
 
   types[type_name] = {type: 'type', name: type_name};
   addType(type_name);
-  updateProperties();
+  updatePropertiesUI();
   hideAddTypeUI();
 });
 
@@ -806,7 +856,7 @@ function addType(type_name) {
     return;
 
   selected_obj.types.push(type_name);
-  updateProperties();
+  updatePropertiesUI();
 
   // cascade the type addition to all objects using this sprite
   if (selected_obj.type == 'sprite') {
@@ -868,9 +918,79 @@ $('is-solid').addEventListener('change', function(evt) {
 //     edit(/*selected_tile.type*/);
 // });
 
+$('layers').addEventListener('change', function(evt) {
+  layer = level.layers.find(l => l.id == evt.target.value);
+  updateLayerUI();
+});
+
+$('new_layer').addEventListener('click', function() {
+  var new_order = level.layers[level.layers.length - 1].order + 1;
+  var max_id = null;
+  for (var l of level.layers) {
+    if (max_id == null || l.id > max_id)
+      max_id = l.id;
+  }
+
+  var new_layer = {id: max_id + 1, order: new_order, visible: true};
+  level.layers.push(new_layer);
+  sortLayers();
+
+  layer = new_layer;
+  updateLayerUI();
+});
+
+$('layer_up').addEventListener('click', function() {
+  var ix = level.layers.indexOf(layer);
+  var layer_above = level.layers[ix + 1];
+  if (!layer_above)
+    throw new Error('layer up enabled, but no layer above');
+  
+  // swap order w/ the layer above
+  var order_above = layer_above.order;
+  layer_above.order = layer.order;
+  layer.order = order_above;
+
+  sortLayers();
+  updateLayerUI();
+});
+
+$('layer_down').addEventListener('click', function() {
+  var ix = level.layers.indexOf(layer);
+  var layer_below = level.layers[ix - 1];
+  if (!layer_below)
+    throw new Error('layer down enabled, but no layer below');
+  
+  // swap order w/ the layer below
+  var order_below = layer_below.order;
+  layer_below.order = layer.order;
+  layer.order = order_below;
+
+  sortLayers();
+  updateLayerUI();
+});
+
+$('delete_layer').addEventListener('click', function() {
+  if (level.layers.length == 1)
+    throw new Error('Cannot delete last layer');
+
+  var ix = level.layers.indexOf(layer);
+  level.layers.splice(ix, 1);
+  layer = level.layers[0];
+  updateLayerUI();
+});
+
+$('toggle_layer').addEventListener('click', function() {
+  layer.visible = !layer.visible;
+  updateLayerUI();
+});
+
+function sortLayers() {
+  level.layers.sort((a, b) => a.order - b.order);
+}
+
 $('tilesets').addEventListener('change', function(evt) {
   viewSpritesheet(parseInt(evt.target.value));
-  renderTileset();
+  updateTilesetUI();
 });
 
 $('tileset').addEventListener('click', function(evt) {
@@ -977,10 +1097,10 @@ async function loadImage(img_ix, data_url, filename, sprites) {
       num_tiles_h = Math.ceil(img.height / tile_size);
       $('tileset').setAttribute('width', img.width);
       $('tileset').setAttribute('height', img.height);
-      renderTileset();
+      updateTilesetUI();
 
       var opts = imgs.map((img, ix) => [img.filename, ix]);
-      setSelectOptions($('tilesets'), opts);
+      setSelectOptions('tilesets', opts);
       $('tilesets').value = img_ix;
 
       $("tilesets").style.display = '';
@@ -992,24 +1112,6 @@ async function loadImage(img_ix, data_url, filename, sprites) {
 
     img.src = data_url;
   });
-}
-
-function renderTileset() {
-  if (!(imgs[img_ix] instanceof HTMLImageElement))
-    return;
-
-  var canvas = $('tileset');
-  var tileset_ctx = canvas.getContext('2d');
-  tileset_ctx.clearRect(0, 0, canvas.width, canvas.height);
-  tileset_ctx.imageSmoothingEnabled = false;
-  tileset_ctx.drawImage(imgs[img_ix], 0, 0);
-
-  // outline currently selected tile in tileset
-  if (selected_obj.type == 'sprite') {
-    tileset_ctx.strokeStyle = '#3B88FD'; // selected styling
-    tileset_ctx.lineWidth = 2;
-    tileset_ctx.strokeRect(selected_obj.x * tile_size, selected_obj.y * tile_size, tile_size, tile_size);
-  }
 }
 
 var LEFT = 37;
@@ -1471,6 +1573,8 @@ function loadLevel(level_n) {
   level_num = level_n;
   level = levels[level_num - 1];
   objects = level.objects;
+  layer = level.layers[0];
+  updateLayerUI();
 
   player.x = start_x;
   player.y = start_y;
@@ -1486,28 +1590,46 @@ function startLevel() {
     fireEvent(obj, 'create');
 }
 
-// alternate: createTile(grid_x, grid_y, sprite_id)
-function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types, is_design_time) {
-  // if a sprite ID is passed, look it up
-  if (typeof sprite_x == 'string') {
-    var sprite_id = sprite_x;
-    for (var img_ix = 0; img_ix < imgs.length; ++img_ix) {
-      var img = imgs[img_ix];
-      if (img) {
-        for (var coords in img.sprites) {
-          var sprite = img.sprites[coords];
-          if (sprite.id == sprite_id) {
-            sprite_x = sprite.x;
-            sprite_y = sprite.y;
-            spritesheet_ix = img_ix;
-            if (!types)
-              types = sprite.types || [];
-          }
+function createTile(grid_x, grid_y, sprite_id, layer_id) {
+  // default to the lowest layer
+  if (layer_id == null) {
+    var lowest_order = null;
+    var lowest_layer_id = null;
+    for (var layer of level.layers) {
+      if (lowest_order == null || layer.order < lowest_order) {
+        lowest_order = layer.order;
+        lowest_layer_id = layer.id;
+      }
+    }
+    layer_id = lowest_layer_id;
+  }
+
+  // lookup sprite data
+  var sprite_x;
+  var sprite_y;
+  var spritesheet_ix;
+  var types;
+  for (var img_ix = 0; img_ix < imgs.length; ++img_ix) {
+    var img = imgs[img_ix];
+    if (img) {
+      for (var coords in img.sprites) {
+        var sprite = img.sprites[coords];
+        if (sprite.id == sprite_id) {
+          sprite_x = sprite.x;
+          sprite_y = sprite.y;
+          spritesheet_ix = img_ix;
+          types = sprite.types || [];
         }
       }
     }
   }
 
+  var tile = createTileInternal(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types, layer_id);
+  fireEvent(tile, 'create');
+}
+function createTileInternal(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types, layer_id) {
+  if (layer_id == null)
+    layer_id = layer.id;
   if (spritesheet_ix == null)
     spritesheet_ix = 0;
 
@@ -1526,6 +1648,7 @@ function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types, i
     y: y,
     w: tile_size,
     h: tile_size,
+    layer_id: layer_id,
     sprite_x: sprite_x,
     sprite_y: sprite_y,
     img_ix: spritesheet_ix,
@@ -1535,9 +1658,7 @@ function createTile(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types, i
     timeout_ids: null
   };
 
-  objects.push(obj);
-  if (!is_design_time)
-    fireEvent(obj, 'create');
+  objects.push(obj);  
   return obj;
 }
 
@@ -1651,7 +1772,7 @@ function fireEvent(obj, evt_name, this_obj, data) {
     obj[handler_name] = lines.join('\n');
 
     if (selected_obj == this_obj)
-      updateProperties();
+      updatePropertiesUI();
   }
 }
 

@@ -25,8 +25,8 @@ Player API:
 * `setStart(x, y)`
 
 Tile API:
-* `createTile(grid_x, grid_y, sprite_id)`
-* `cloneTile(tile, overrides)`
+* `createTile(grid_x, grid_y, sprite_id, *layer_ix)` (layer_id defaults to ID of lowest layer)
+* `cloneTile(tile, *overrides)`
 * `getTile(grid_x, grid_y)`
 * `deleteTile(tile)`
 * `getGridX/Y(tile)` and `setGridX/Y(tile, new_value)`
@@ -48,3 +48,4 @@ Tile Properties:
 * `.img_ix` (which spritesheet to look for sprite, indexes start at 0)
 * `.types` (array of type strings, used for ECS)
 * `.is_solid` (true/false; whether it passes through other solid objects)
+* `.layer_id` (numeric Layer ID)
