@@ -1189,12 +1189,11 @@ function serializeGame() {
 
   // serialize functions back to strings manually
   // otherwise they get wrapped in 'async function() { ... }'
-  for (var level of levels) {
+  for (var level of levels)
     serializeEvtHandlers(level);
 
-    for (var obj of level.objects)
-      serializeEvtHandlers(obj);
-  }
+  for (var type_name in types)
+    serializeEvtHandlers(types[type_name]);
   
   // serialize image pixel data
   for (var i = 0; i < imgs.length; i++) {
