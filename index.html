@@ -358,10 +358,11 @@ GameEditor.prototype.onMouseDown = function(evt) {
       obj_under_mouse.types = selected_obj.types.slice(); // deep clone
     }
     else {
-      fireEvent(obj_under_mouse, 'click');
-
-      // toggle selection
-      if (!is_playing) {
+      if (is_playing) {
+        fireEvent(obj_under_mouse, 'click');
+      }
+      else {
+        // toggle selection      
         if (obj_under_mouse == selected_tile)
           deselect();
         else
@@ -1358,6 +1359,7 @@ async function loadGame(parsed) {
 }
 
 function play() {
+  deselect();
   is_playing = true;
   hideDesignUI();
   startLevel();
@@ -1776,6 +1778,10 @@ async function animate(obj, steps, seconds_per_step) {
 
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
 function fireEvent(obj, evt_name, this_obj, data) {
+  // only fire events when in gameplay mode, not design-mode
+  if (!is_playing)
+    return;
+
   if (obj.type == 'tile') {
     for (var type_name of obj.types) {
       var type = types[type_name];
