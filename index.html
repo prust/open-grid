@@ -146,6 +146,7 @@ canvas {
 </canvas>
 <div id="sidebar" style="right: 0px">
   <div id="props_panel" class="panel">
+    Level: <select id="levels"></select> <button id="new_level">New Level</button>
     <h3 id="properties_heading"></h3>
     <table id="properties">
       <tr id="id_properties">
@@ -482,6 +483,14 @@ function deselect() {
   select(level);
 }
 
+function updateLevelsUI() {
+  var opts = [];
+  for (var i = 0; i < levels.length; ++i)
+    opts.push([i + 1, i + 1]);
+  setSelectOptions('levels', opts);
+  $('levels').value = levels.indexOf(level) + 1;
+}
+
 function updatePropertiesUI() {
   if (selected_tile) {
     $('properties_heading').innerText = 'Object Properties';
@@ -816,6 +825,15 @@ function getIntersection(rect1, rect2) {
 function pxToGrid(px) {
   return Math.floor(px / tile_size);
 }
+
+$('levels').addEventListener('change', function(evt) {
+  loadLevel(parseInt(evt.target.value));
+});
+
+$('new_level').addEventListener('click', function(evt) {
+  levels.push({objects: [], type: 'level', layers: [{id: 1, order: 0, visible: true}]});
+  loadLevel(levels.length);
+});
 
 $('event').addEventListener('change', updateCode);
 
@@ -1572,6 +1590,8 @@ function setStart(x, y) {
 function loadLevel(level_n) {
   level_num = level_n;
   level = levels[level_num - 1];
+  updateLevelsUI();
+
   objects = level.objects;
   layer = level.layers[0];
   updateLayerUI();
