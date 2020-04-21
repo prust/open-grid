@@ -1161,7 +1161,7 @@ document.addEventListener('keydown', function(evt) {
   else if (evt.keyCode == DEL && selected_tile) {
     var tile = selected_tile;
     deselect();
-    deleteTile(tile);
+    deleteObject(tile);
   }
   else if (evt.keyCode == ESC) {
     if (img_editor) {
@@ -1598,6 +1598,8 @@ function setStart(x, y) {
 }
 
 function loadLevel(level_n) {
+  unloadLevel();
+
   level_num = level_n;
   level = levels[level_num - 1];
   updateLevelsUI();
@@ -1612,6 +1614,14 @@ function loadLevel(level_n) {
   player.vel_x = 0;
   player.accel_x = 0;
   player.accel_y = 0;
+}
+
+function unloadLevel() {
+  if (!level)
+    return;
+
+  while (level.objects.length)
+    deleteObject(level.objects[0]);
 }
 
 function startLevel() {
@@ -1718,13 +1728,15 @@ function cloneTile(tile, overrides) {
   return new_tile;
 }
 
-function deleteTile(tile) {
-  var ix = objects.indexOf(tile);
+function deleteObject(obj) {
+  var ix = objects.indexOf(obj);
   if (ix > -1)
     objects.splice(ix, 1);
 
-  if (tile.timeout_ids)
-    tile.timeout_ids.forEach(id => clearTimeout(id));
+  if (obj.timeout_ids) {
+    obj.timeout_ids.forEach(id => clearTimeout(id));
+    obj.timeout_ids = [];
+  }
 }
 
 function getTile(grid_x, grid_y) {
@@ -1808,6 +1820,9 @@ function fireEvent(obj, evt_name, this_obj, data) {
 }
 
 async function timeout(seconds, obj) {
+  if (!obj)
+    throw new Error('timeout called without an object, so it cannot be cancelled');
+
   return new Promise(function(resolve, reject) {
     var timeout_id = setTimeout(function() {
       // remove timeout_id from list of active timeout_ids
