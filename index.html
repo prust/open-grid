@@ -1670,7 +1670,7 @@ function createTile(grid_x, grid_y, sprite_id, layer_id) {
           sprite_x = sprite.x;
           sprite_y = sprite.y;
           spritesheet_ix = img_ix;
-          types = sprite.types || [];
+          types = sprite.types.slice() || [];
         }
       }
     }
@@ -1689,7 +1689,7 @@ function createTileInternal(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, 
   if (!types) {
     var sprite = getSprite(sprite_x, sprite_y);
     if (sprite && sprite.types)
-      types = sprite.types;
+      types = sprite.types.slice();
     else
       types = [];
   }
@@ -1715,7 +1715,7 @@ function createTileInternal(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, 
   return obj;
 }
 
-function cloneTile(tile, overrides) {
+function cloneTile(tile, overrides, layer_id) {
   var new_tile = {};
   for (var prop in tile) {
     var val = tile[prop];
@@ -1728,11 +1728,14 @@ function cloneTile(tile, overrides) {
       new_tile[prop] = val;
   }
 
+  if (layer_id != null)
+    new_tile.layer_id = layer_id;
+
   // if types are explicit and sprite_x/y are
   // then types should be derived from the new sprite_x/y
   if (!('types' in overrides) && ('sprite_x' in overrides || 'sprite_y' in overrides)) {
     var sprite = getSprite(new_tile.sprite_x, new_tile.sprite_y);
-    new_tile.types = (sprite && sprite.types) || [];
+    new_tile.types = (sprite && sprite.types.slice()) || [];
   }
 
   objects.push(new_tile);
@@ -1751,10 +1754,23 @@ function deleteObject(obj) {
   }
 }
 
-function getTile(grid_x, grid_y) {
+function getTile(grid_x, grid_y, layer_id) {
   var x = grid_x * tile_size;
   var y = grid_y * tile_size;
-  return objects.find(obj => obj.x == x && obj.y == y);
+  
+  var layers;
+  if (layer_id != null) {
+    layers = [level.layers.find(l => l.id == layer_id)];
+  }
+  else {
+    layers = level.layers.slice();
+    layers.reverse(); // default (rendering) order is bottom-to-top; we want to get top-most first
+  }
+
+  for (var layer of layers)
+    for (var obj of objects)
+      if (obj.x == x && obj.y == y && obj.layer_id == layer.id)
+        return obj;
 }
 
 function getGridX(obj) {

@@ -23,7 +23,7 @@ The API (and any HTML5 APIs) can be accessed in the event handlers in the editor
 
 General API:
 * `loadLevel(level_num)`
-* `await timeout(seconds)`
+* `await timeout(seconds, object)`
 * `setStatus(message)`
 * `setCursor(cursor_id)`
 * `alert(message)`
@@ -37,8 +37,8 @@ Player API:
 
 Tile API:
 * `createTile(grid_x, grid_y, sprite_id, *layer_id)` (`layer_id` defaults to ID of lowest layer)
-* `cloneTile(tile, *overrides)`
-* `getTile(grid_x, grid_y)`
+* `cloneTile(tile, *overrides, *layer_id)` (`layer_id` defaults to ID of cloned tile)
+* `getTile(grid_x, grid_y, *layer_id)` (`layer_id` defaults to layer_id of top-most tile at location)
 * `deleteTile(tile)`
 * `getGridX/Y(tile)` and `setGridX/Y(tile, new_value)`
 * `fireEvent(tile, event_name)`
