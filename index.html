@@ -1645,6 +1645,7 @@ function createTile(grid_x, grid_y, sprite_id, layer_id) {
 
   var tile = createTileInternal(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types, layer_id);
   fireEvent(tile, 'create');
+  return tile;
 }
 function createTileInternal(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, types, layer_id) {
   if (layer_id == null)
