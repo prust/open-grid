@@ -342,12 +342,22 @@ GameEditor.prototype.onMouseDown = function(evt) {
 
   var paint_mode = !is_playing && selected_obj && selected_obj.type == 'sprite';
 
+  // find the object currently under the mouse pointer
   var obj_under_mouse;
-  for (var i = 0; i < objects.length; i++) {
-    var obj = objects[i];
-    if (intersectsPoint(obj, pt))
-      if (!paint_mode || obj.layer_id == layer.id)
+
+  // paint-mode is locked to curr layer; gameplay & selection modes are constrained to visible layers
+  var layers = paint_mode ? [layer] : level.layers.filter(l => l.visible);
+  layers.reverse(); // the default (rendering) order is bottom to top; for selection we need top-to-bottom
+
+  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/label
+  outerloop:
+  for (var layer of layers) {
+    for (var obj of objects) {
+      if (obj.layer_id == layer.id && intersectsPoint(obj, pt)) {
         obj_under_mouse = obj;
+        break outerloop;
+      }
+    }
   }
 
   if (obj_under_mouse) {
