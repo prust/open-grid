@@ -452,16 +452,24 @@ GameEditor.prototype.destroy = function() {
 // ];
 
 var game_editor = new GameEditor(ctx);
-if (getQueryVariable('game')) {
+game_name = getQueryVariable('game') || '';
+if (game_name) {
   hideDesignUI();
   hide('restart');
 
-  var filename = getQueryVariable('game') + '.json';
+  var filename = `${game_name}.json`;
   fetch(filename).then(function(res) {
     return res.json();
   }).then(async function(game_obj) {
     await loadGame(game_obj);
-    play();
+    
+    if (getQueryVariable('import') == 'true') {
+      showDesignUI();
+      show('restart');
+    }
+    else {
+      play();
+    }
   });
 }
 
@@ -1360,6 +1368,9 @@ function hideDesignUI() {
 function stop() {
   is_playing = false;
   load();
+  showDesignUI();
+}
+function showDesignUI() {
   show('sidebar', 'load', 'save', 'export', 'coords');
 }
 
