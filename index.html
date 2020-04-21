@@ -224,7 +224,7 @@ var types = {};
 var game_name = '';
 var is_playing = false;
 
-var player = {x: 0, y: 0, vel_x: 0, vel_y: 0, accel_y: 0};
+var player = {x: 0, y: 0, w: tile_size, h: tile_size, vel_x: 0, vel_y: 0, accel_y: 0};
 loadLevel(1);
 var events = {
   level: ['Start'],
@@ -729,10 +729,7 @@ function update() {
         if (obj == obj2)
           continue;
 
-        var collides = getIntersection(
-          {x1: obj.x, x2: obj.x + obj.w, y1: obj.y, y2: obj.y + obj.h},
-          {x1: obj2.x, x2: obj2.x + obj2.w, y1: obj2.y, y2: obj2.y + obj2.h}
-        );
+        var collides = getIntersection(getRect(obj), getRect(obj2));
         if (collides) {
           fireEvent(obj, 'collide', null, obj2);
           fireEvent(obj2, 'collide', null, obj);
@@ -775,10 +772,7 @@ function update() {
   // http://higherorderfun.com/blog/2012/05/20/the-guide-to-implementing-2d-platformers/
   for (var i = 0; i < objects.length; i++) {
     var obj = objects[i];
-    var intersection = getIntersection(
-      {x1: player.x, x2: player.x + tile_size, y1: player.y, y2: player.y + tile_size},
-      {x1: obj.x, x2: obj.x + obj.w, y1: obj.y, y2: obj.y + obj.h}
-    );
+    var intersection = getIntersection(getRect(player), getRect(obj));
     if (intersection) {
       if (obj.is_solid) {
         var x_overlap = intersection.x2 - intersection.x1;
@@ -815,7 +809,20 @@ function update() {
 
   if (player.vel_x || player.vel_y)
     viewport.follow(player);
-}  
+}
+
+function getRect(obj) {
+  var rect = {x1: obj.x, x2: obj.x + obj.w, y1: obj.y, y2: obj.y + obj.h};
+  if (obj.padding_left)
+    rect.x1 += obj.padding_left;
+  if (obj.padding_right)
+    rect.x2 -= obj.padding_right;
+  if (obj.padding_top)
+    rect.y1 += obj.padding_top;
+  if (obj.padding_bottom)
+    rect.y2 -= obj.padding_bottom;
+  return rect;
+}
 
 function intersectsPoint(rect, pt) {
   return rect.x <= pt.x && rect.x + rect.w > pt.x &&
