@@ -225,12 +225,11 @@ var game_name = '';
 var is_playing = false;
 
 var player = {x: 0, y: 0, w: tile_size, h: tile_size, vel_x: 0, vel_y: 0, accel_y: 0};
-loadLevel(1);
 var events = {
   level: ['Start'],
   type: ['Create', 'Collide', 'Click', 'Mouse Enter', 'Mouse Leave']
 };
-select(level);
+loadLevel(1);
 
 function Viewport(width, height) {
   this.width = width;
@@ -475,6 +474,9 @@ if (game_name) {
     await loadGame(game_obj);
     
     if (getQueryVariable('import') == 'true') {
+      // strip querystring after import, so future refreshes don't re-import
+      window.history.replaceState({}, document.title, window.location.pathname);
+
       showDesignUI();
       show('restart');
     }
@@ -1385,7 +1387,10 @@ function hideDesignUI() {
   hide('sidebar', 'load', 'save', 'export', 'coords');
 }
 function stop() {
+  // switch in-game things back to original settings
   setCursor('default');
+  setStatus('');
+
   is_playing = false;
   load();
   showDesignUI();
@@ -1622,6 +1627,7 @@ function loadLevel(level_n) {
 
   level_num = level_n;
   level = levels[level_num - 1];
+  select(level);
   updateLevelsUI();
 
   objects = level.objects;
@@ -1639,6 +1645,8 @@ function loadLevel(level_n) {
 function unloadLevel() {
   if (!level)
     return;
+
+  clearTimeouts(level);
 
   while (level.objects.length)
     deleteObject(level.objects[0]);
@@ -1756,6 +1764,10 @@ function deleteObject(obj) {
   if (ix > -1)
     objects.splice(ix, 1);
 
+  clearTimeouts(obj);
+}
+
+function clearTimeouts(obj) {
   if (obj.timeout_ids) {
     obj.timeout_ids.forEach(id => clearTimeout(id));
     obj.timeout_ids = [];
