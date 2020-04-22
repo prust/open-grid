@@ -227,7 +227,7 @@ var is_playing = false;
 var player = {x: 0, y: 0, w: tile_size, h: tile_size, vel_x: 0, vel_y: 0, accel_y: 0};
 var events = {
   level: ['Start'],
-  type: ['Create', 'Collide', 'Click', 'Mouse Enter', 'Mouse Leave']
+  type: ['Create', 'Collide', 'Click', 'Mouse Enter', 'Mouse Leave', 'Out Of Bounds']
 };
 loadLevel(1);
 
@@ -718,6 +718,7 @@ function draw() {
 }
 
 function update() {
+  var level_rect = getRect(level);
   for (var obj of objects) {
     if (obj.vel_x)
       obj.x += obj.vel_x;
@@ -727,11 +728,15 @@ function update() {
     // TODO: delete objects (bullets, etc) when they go outside the world bounds
     
     if (obj.vel_x || obj.vel_y) {
+      var obj_rect = getRect(obj);
+      if (!getIntersection(level_rect, obj_rect))
+        fireEvent(obj, 'out of bounds');
+
       for (var obj2 of objects) {
         if (obj == obj2)
           continue;
 
-        var collides = getIntersection(getRect(obj), getRect(obj2));
+        var collides = getIntersection(obj_rect, getRect(obj2));
         if (collides) {
           fireEvent(obj, 'collide', null, obj2);
           fireEvent(obj2, 'collide', null, obj);
@@ -772,42 +777,46 @@ function update() {
   // super-simple AABB collision detection & "slide" resolution
   // TODO: switch to the algorithm outlined in:
   // http://higherorderfun.com/blog/2012/05/20/the-guide-to-implementing-2d-platformers/
-  for (var i = 0; i < objects.length; i++) {
-    var obj = objects[i];
-    var intersection = getIntersection(getRect(player), getRect(obj));
-    if (intersection) {
-      if (obj.is_solid) {
-        var x_overlap = intersection.x2 - intersection.x1;
-        var y_overlap = intersection.y2 - intersection.y1;
-        if (x_overlap < y_overlap) {
-          // back out the x overlap
-          var player_on_left = player.x < obj.x;
-          if (player_on_left)
-            player.x -= x_overlap;
-          else
-            player.x += x_overlap;
-          player.vel_x = 0;
-        }
-        else {
-          // back out the y overlap
-          var player_above = player.y < obj.y;
-          if (player_above)
-            player.y -= y_overlap;
-          else
-            player.y += y_overlap;
 
-          // drop the y velocity to zero on a vertical collision
-          // w/out this, the constant collisions caused by gravity
-          // cause some side-effects
-          // but sometimes it's not perfect, like when hitting a corner
-          // dropping the `vel_x` to zero makes the sideways velocity drop to zero sometimes
-          // when dropping to the ground
-          player.vel_y = 0;
-        }
-      }
-      fireEvent(obj, 'collide');
-    }
-  }
+  // TEMP: comment out player-oriented collision code
+  // since we're not using it right now & it's killing perf
+
+  // for (var i = 0; i < objects.length; i++) {
+  //   var obj = objects[i];
+  //   var intersection = getIntersection(getRect(player), getRect(obj));
+  //   if (intersection) {
+  //     if (obj.is_solid) {
+  //       var x_overlap = intersection.x2 - intersection.x1;
+  //       var y_overlap = intersection.y2 - intersection.y1;
+  //       if (x_overlap < y_overlap) {
+  //         // back out the x overlap
+  //         var player_on_left = player.x < obj.x;
+  //         if (player_on_left)
+  //           player.x -= x_overlap;
+  //         else
+  //           player.x += x_overlap;
+  //         player.vel_x = 0;
+  //       }
+  //       else {
+  //         // back out the y overlap
+  //         var player_above = player.y < obj.y;
+  //         if (player_above)
+  //           player.y -= y_overlap;
+  //         else
+  //           player.y += y_overlap;
+
+  //         // drop the y velocity to zero on a vertical collision
+  //         // w/out this, the constant collisions caused by gravity
+  //         // cause some side-effects
+  //         // but sometimes it's not perfect, like when hitting a corner
+  //         // dropping the `vel_x` to zero makes the sideways velocity drop to zero sometimes
+  //         // when dropping to the ground
+  //         player.vel_y = 0;
+  //       }
+  //     }
+  //     fireEvent(obj, 'collide');
+  //   }
+  // }
 
   if (player.vel_x || player.vel_y)
     viewport.follow(player);
@@ -1259,6 +1268,12 @@ function load() {
   if (!game_name)
     game_name = prompt('What game would you like to load?');
   
+  if (game_name == null) // user clicked "Cancel" or typed nothing
+    return;
+
+  if (game_name == '')
+    return alert('No name entered, cancelling load.')
+
   var json = localStorage.getItem(game_name);
   if (!json)
     return alert('Sorry, no level with the name "' + game_name + '" exists.');
@@ -1648,14 +1663,38 @@ function unloadLevel() {
 
   clearTimeouts(level);
 
-  while (level.objects.length)
-    deleteObject(level.objects[0]);
+  if (level.objects != objects)
+    throw new Error('level.objects != objects (due to hacking objects in console?)');
+
+  while (objects.length)
+    deleteObject(objects[0]);
 }
 
 function startLevel() {
+  // update level dimensions
+  level.x = null;
+  level.y = null;
+  var level_bottom = null;
+  var level_right = null;
+
   fireEvent(level, 'start');
-  for (var obj of objects)
+  for (var obj of objects) {
+    if (level.x == null || obj.x < level.x)
+      level.x = obj.x;
+    if (level.y == null || obj.y < level.y)
+      level.y = obj.y;
+
+    var obj_bottom = obj.y + obj.h;
+    if (level_bottom == null || obj_bottom > level_bottom)
+      level_bottom = obj_bottom;
+    var obj_right = obj.x + obj.w;
+    if (level_right == null || obj_right > level_right)
+      level_right = obj_right;
+
     fireEvent(obj, 'create');
+  }
+  level.h = level_bottom - level.y;
+  level.w = level_right - level.x;
 }
 
 function createTile(grid_x, grid_y, sprite_id, layer_id) {
