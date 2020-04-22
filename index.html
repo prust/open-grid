@@ -351,9 +351,9 @@ GameEditor.prototype.onMouseDown = function(evt) {
 
   // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/label
   outerloop:
-  for (var layer of layers) {
+  for (var l of layers) {
     for (var obj of objects) {
-      if (obj.layer_id == layer.id && intersectsPoint(obj, pt)) {
+      if (obj.layer_id == l.id && intersectsPoint(obj, pt)) {
         obj_under_mouse = obj;
         break outerloop;
       }
