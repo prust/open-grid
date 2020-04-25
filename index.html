@@ -785,10 +785,15 @@ function HealthSystem() {
     damageable.health_pts -= bullet.damage_pts;
     if (damageable.health_pts <= 0)
       this.onDeath(damageable);
-  });
+
+    // delete the bullet after a timeout so it doesn't mess up the object iteration
+    setTimeout(function() {
+      deleteObject(bullet);
+    }, 1)
+  }.bind(this));
 }
 
-HealthSystem.prototype.onDeath = function() {
+HealthSystem.prototype.onDeath = function(obj) {
   if (obj.death_anim_id) {
     if (!hasComp(obj, 'Animateable'))
       obj.components.push('Animateable');
@@ -1086,6 +1091,8 @@ function addComponent(component_name) {
     return;
 
   selected_obj.components.push(component_name);
+  if (selected_obj.type != 'sprite')
+    setCompDefaults(selected_obj, components[component_name]);
   updatePropertiesUI();
 
   // cascade the type addition to all objects using this sprite
@@ -1777,12 +1784,16 @@ function createObject(x, y, sprite, layer_id) {
   // set default properties for components
   for (let component_name in components)
     if (hasComp(obj, component_name))
-      for (let prop of components[component_name])
-        if (!(prop[ID] in obj))
-          obj[prop[ID]] = prop[DEFAULT];
+      setCompDefaults(obj, components[component_name]);
 
-  objects.push(obj);  
+  objects.push(obj);
   return obj;
+}
+
+function setCompDefaults(obj, component) {
+  for (let prop of component)
+    if (!(prop[ID] in obj))
+      obj[prop[ID]] = prop[DEFAULT];
 }
 
 function deleteObject(obj) {
