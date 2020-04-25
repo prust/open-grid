@@ -154,7 +154,6 @@ canvas {
       <button id="add_component">Add Component</button>
       <select id="add_components" style="display: none"></select> <button id="cancel_add_component" style="display: none">Cancel</button>
     </div>
-    <!--button id="edit-img">Edit Image</button><br-->
   </div>
 
   <div id="sprites_panel" class="panel">
@@ -188,30 +187,43 @@ var grid_height = 100;
 var tile_size = 16;
 var num_tiles_w = 0;
 var num_tiles_h = 0;
-var selected_tile = null;
 var selected_obj = null;
-var curr_mouse_over_obj = null;
 var img_editor = null;
 var start_x = 0;
 var start_y = 0;
 var imgs = [];
 var img_ix = null;
 var zoom = 2;
-var levels = [{objects: [], type: 'level', layers: [{id: 1, order: 0, visible: true}]}];
+var levels = [{objects: [], layers: [{id: 1, order: 0, visible: true}]}];
 var level = null;
 var layer = null;
 var level_num;
+var dir = {left: {x: -1, y: 0}, right: {x: 1, y: 0}, up: {x: 0, y: -1}, down: {x: 0, y: 1}};
+
+// similar to how time can be presented in "units" of ms/sec/min/hr
+// distance can be presented in "units" of pixels or tiles
+// the component (or sprite?) could define a default_unit
+// if the decimal is not a clean tenths (i.e. "0.5", "0.1"), it could auto-bump to a smaller unit
 
 // indexes in the component property arrays
 const NAME = 0, ID = 1, TYPE = 2, DEFAULT = 3;
+var required_comp_ids = ['Positionable', 'Drawable'];
 var components = {
   Positionable: [
     ['Left', 'x', 'int', 0],
-    ['Top', 'y', 'int', 16]
+    ['Top', 'y', 'int', 16],
+    ['Width', 'w', 'int', tile_size],
+    ['Height', 'h', 'int', tile_size]
+  ],
+  Drawable: [
+    ['Sprite X', 'sprite_x', 'int', 0],
+    ['Sprite Y', 'sprite_y', 'int', 0],
+    ['Spritesheet #', 'img_ix', 'int', 0],
+    ['Layer ID', 'layer_id', 'int', 0]
   ],
   Speed: [
-    ['Right', 'x_vel', 'int', 0],
-    ['Down', 'y_vel', 'int', 0]
+    ['Right', 'vel_x', 'int', 0],
+    ['Down', 'vel_y', 'int', 0]
   ],
   Collideable: [
     ['Left Padding', 'padding_left', 'int', 0],
@@ -221,31 +233,43 @@ var components = {
   ],
   Animateable: [
     ['Number of Frames', 'frame_count', 'int', 1],
-    ['Animate Interval', 'anim_interval', 'int', 1000] // TODO: "time" type w/ ms/sec/min/hr dropdown UI
+    ['Current Frame', 'curr_frame', 'int', 0],
+    ['Animate Interval', 'anim_interval', 'int', 1000], // TODO: "time" type w/ ms/sec/min/hr dropdown UI
+    ['Last Animated', 'anim_timestamp', 'int', 0]
   ],
-  Rotateable: [],
-  RotatesTowards: [
-    ['SpriteIDs', 'rot_to_sprite_ids', 'array:string', []] // TODO: make this a plus icon that expands to multiple rows
+  Rotateable: [
+    ['Rotates to Sprite IDs', 'rot_to_sprite_ids', 'array:string', []] // TODO: make this a plus icon that expands to multiple rows
   ],
   Growable: [
     ['Grow Interval', 'grow_interval', 'int', 1000], // TODO: make this a "time" type with ms/sec/min/hr dropdown UI
-    ['Grow Sprite ID', 'grow_sprite_id', 'string', ''],
-    ['Grow Sprite Num. Frames', 'grow_frame_count', 'int', 1],
-    ['Grow Direction', 'grow_dir', 'string', 'left'] // TODO: make this a drop-down with options
+    ['Grow Direction', 'grow_dir', 'string', 'left'], // TODO: make this a drop-down with options
+    ['Last Grown Time', 'grow_timestamp', 'int', 0],
+    ['Grow Sprite ID', 'grow_sprite_id', 'string', '']
   ],
-  Bullet: [['Damage Points', 'damage_pts', 'int', 50]],
-  Shootable: [],
+  Shoots: [
+    ['Bullet Sprite ID', 'bullet_sprite_id', 'string', ''],
+    ['Shoot Interval', 'shoot_interval', 'int', 1000],
+    ['Last Shoot Time', 'shoot_timestamp', 'int', 0]
+  ],
+  Bullet: [
+    ['Damage Points', 'damage_pts', 'int', 50]
+  ],
   Damageable: [
     ['Health Points', 'health_pts', 'int', 100],
-    ['Damage Animation', 'damage_anim', 'int', null],
-    ['Death Animation', 'death_anim', 'int', null]
+    // ['Damage Animation', 'damage_anim', 'int', null],
+    ['Death Animation', 'death_anim_id', 'int', null],
+    ['Death Anim # Frames', 'death_anim_frame_count', 'int', null],
+    ['Death Anim Interval', 'death_anim_interval', 'int', null]
   ],
-  Placeable: [],
-  Purchaseable: [['Cost', 'cost', 'int', 1]],
-  'Has Money': [['Money', 'money', 'int', 0]],
-  'Accumulates Money': [
-    ['Accumulation Amount', 'acc_amt', 'int', 1],
-    ['Accumulation Seconds', 'acc_sec', 'float', 5]
+  Buyer: [
+    ['Cost', 'cost', 'int', 1],
+    ['Item Sprite ID', 'item_sprite_id', 'str', '']
+  ],
+  'Has Money': [
+    ['Money', 'money', 'int', 0],
+    ['Earns Amount', 'earns_amt', 'int', 0],
+    ['Earns Interval', 'earns_interval', 'int', 5000],
+    ['Last Earned Time', 'earned_timestamp', 'int', 0]
   ]
 };
 
@@ -255,6 +279,8 @@ var is_playing = false;
 var player = {x: 0, y: 0, w: tile_size, h: tile_size, vel_x: 0, vel_y: 0, accel_y: 0};
 // events: 'Start', 'Create', 'Collide', 'Click', 'Mouse Enter', 'Mouse Leave', 'Out Of Bounds'
 loadLevel(1);
+
+
 
 function Viewport(width, height) {
   this.width = width;
@@ -349,6 +375,8 @@ $('fullscreen').addEventListener('click', function() {
     reqFullscreen && reqFullscreen.apply(body);
 });
 
+
+
 function GameEditor(ctx) {
   this.onMouseMove = this.onMouseMove.bind(this);
   this.onMouseDown = this.onMouseDown.bind(this);
@@ -359,12 +387,15 @@ function GameEditor(ctx) {
 }
 
 GameEditor.prototype.onMouseDown = function(evt) {
+  if (is_playing)
+    return;
+
   var pt = {
     x: Math.floor((evt.pageX + viewport.transform_x) / zoom),
     y: Math.floor((evt.pageY + viewport.transform_y) / zoom)
   };
 
-  var paint_mode = !is_playing && selected_obj && selected_obj.type == 'sprite';
+  var paint_mode = selected_obj && selected_obj.type == 'sprite';
 
   // find the object currently under the mouse pointer
   var obj_under_mouse;
@@ -384,44 +415,39 @@ GameEditor.prototype.onMouseDown = function(evt) {
     }
   }
 
-  if (obj_under_mouse) {
-    if (paint_mode) {
-      obj_under_mouse.img_ix = img_ix;
-      obj_under_mouse.sprite_x = selected_obj.x;
-      obj_under_mouse.sprite_y = selected_obj.y;
-      obj_under_mouse.components = selected_obj.components.slice(); // deep clone
-    }
-    else {
-      if (is_playing) {
-        fireEvent(obj_under_mouse, 'click');
-      }
-      else {
-        // toggle selection      
-        if (obj_under_mouse == selected_tile)
-          deselect();
-        else
-          select(obj_under_mouse);
-      }
-    }
+  if (paint_mode) {
+    if (obj_under_mouse)
+      deleteObject(obj_under_mouse);
+    createObject(pxToGrid(pt.x) * tile_size, pxToGrid(pt.y) * tile_size, selected_obj);
   }
   else {
-    if (paint_mode)
-      createTileInternal(pxToGrid(pt.x), pxToGrid(pt.y), selected_obj.x, selected_obj.y, img_ix, selected_obj.components);
+    if (obj_under_mouse == selected_obj)
+      deselect();
+    else
+      select(obj_under_mouse);
   }
 };
 
 var LEFT_BTN = 1;
 GameEditor.prototype.onMouseMove = function(evt) {
+  if (is_playing)
+    return;
+
   var pt_x = Math.floor((evt.pageX + viewport.transform_x) / zoom);
   var pt_y = Math.floor((evt.pageY + viewport.transform_y) / zoom);
   var grid_x = pxToGrid(pt_x);
   var grid_y = pxToGrid(pt_y);
-
-  var paint_mode = !is_playing && selected_obj && selected_obj.type == 'sprite';
   
   var coords = grid_x + ', ' + grid_y;
   if ($('coords').innerText != coords)
     $('coords').innerText = coords;
+
+  if (evt.buttons % 2 != LEFT_BTN)
+    return;
+  if (document.activeElement && (document.activeElement.tagName == 'TEXTAREA' || document.activeElement.tagName == 'INPUT'))
+    return;
+  
+  var paint_mode = selected_obj && selected_obj.type == 'sprite';
 
   var pt = {x: pt_x, y: pt_y};
   var obj_under_mouse;
@@ -430,28 +456,11 @@ GameEditor.prototype.onMouseMove = function(evt) {
       if (!paint_mode || obj.layer_id == layer.id)
         obj_under_mouse = obj;
 
-  var has_changed = curr_mouse_over_obj != obj_under_mouse;
-  if (has_changed && curr_mouse_over_obj)
-    fireEvent(curr_mouse_over_obj, 'mouse leave');
-  if (has_changed && obj_under_mouse)
-    fireEvent(obj_under_mouse, 'mouse enter');
-  curr_mouse_over_obj = obj_under_mouse;
-
-  if (evt.buttons % 2 != LEFT_BTN)
-    return;
-  if (document.activeElement && (document.activeElement.tagName == 'TEXTAREA' || document.activeElement.tagName == 'INPUT'))
-    return;
-  
   if (paint_mode) {
-    if (!obj_under_mouse) {
-      var obj = createTileInternal(grid_x, grid_y, selected_obj.x, selected_obj.y, img_ix, selected_obj.components);
-    }
-    else {
-      obj_under_mouse.img_ix = img_ix;
-      obj_under_mouse.sprite_x = selected_obj.x;
-      obj_under_mouse.sprite_y = selected_obj.y;
-      obj_under_mouse.components = selected_obj.components.slice(); // deep clone
-    }
+    if (obj_under_mouse)
+      deleteObject(obj_under_mouse);
+
+    createObject(grid_x * tile_size, grid_y * tile_size, selected_obj);
   }
 };
 
@@ -470,21 +479,6 @@ GameEditor.prototype.destroy = function() {
   document.removeEventListener('keypress', this.onKeyPress);
 };
 
-// i thought these colors were taken from a DB16 palette
-// but they weren't, they're from another "DawnBringer" palette here:
-// http://pixeljoint.com/forum/forum_posts.asp?TID=22582
-// var colors = [
-//   null, // at present 1-9 are the colors, 0 means no-block & isn't a color
-//   '#5e6660', // dark-ish grey
-//   '#5d4632', // dark brown
-//   '#44508c', // med (darker) blue
-//   '#a6414d', // dark red
-//   '#c86b36', // orange
-//   '#52903c', // dark green
-//   '#db7ebd', // pink
-//   '#deac85', // tan
-//   '#f2de70' // yellow
-// ];
 
 var game_editor = new GameEditor(ctx);
 game_name = getQueryVariable('game') || '';
@@ -512,22 +506,18 @@ if (game_name) {
 }
 
 function select(obj) {
-  if (!obj)
-    throw new Error('select() called with no object');
-
   // this runs before blur, save before updatePropertiesUI() blows the code away
   // TODO: This was previously done for code; do we need to do it for all text inputs?
 //  if (document.activeElement.tagName == 'INPUT')
 //    saveCode();
 
   selected_obj = obj;
-  selected_tile = obj.type == 'tile' ? obj : null;
   updatePropertiesUI();
   updateTilesetUI();
 }
 
 function deselect() {
-  select(level);
+  select(null);
 }
 
 function updateLevelsUI() {
@@ -539,26 +529,16 @@ function updateLevelsUI() {
 }
 
 function updatePropertiesUI() {
-  if (selected_tile) {
-    $('properties_heading').innerText = 'Object Properties';
-  }
-  else if (selected_obj && selected_obj.type == 'sprite') {
-    $('properties_heading').innerText = 'Sprite Properties';
-  }
-  else if (selected_obj && selected_obj.type == 'type') {
-    $('properties_heading').innerText = `${selected_obj.name} Properties`;
-  }
-  else if (selected_obj && selected_obj.type == 'level') {
-    $('properties_heading').innerText = 'Level Properties';
-  }
-  else {
-    if (!selected_obj)
-      throw new Error('No selected object');
+  if (selected_obj) {
+    if (selected_obj.type != 'sprite')
+      $('properties_heading').innerText = 'Object Properties';
+    else if (selected_obj.type == 'sprite')
+      $('properties_heading').innerText = 'Sprite Properties';
     else
       throw new Error(`Unknown selected object type: ${selected_obj.type}`);
   }
 
-  if (selected_obj.type == 'sprite') {
+  if (selected_obj && selected_obj.type == 'sprite') {
     $('obj_id').value = selected_obj.id || '';
     show('sprite_properties');
   }
@@ -566,22 +546,23 @@ function updatePropertiesUI() {
     hide('sprite_properties');
   }
 
-  if (selected_obj.type == 'sprite' || selected_obj.type == 'tile') {
+  if (selected_obj) {
     var component_opts = [['Select:', 'CHOOSE_COMPONENT']];
     component_opts = component_opts.concat(Object.keys(components).map(name => [name, name]));
     setSelectOptions('add_components', component_opts);
 
     show('components_properties');
-  }
-  else {
-    hide('components_properties');
-  }
 
-  if (selected_obj.type == 'tile' || selected_obj.type == 'sprite') {
     let html = '';
-    for (var comp_id of selected_obj.components) {
+
+    // always order them in the official component order
+    for (var comp_id in components) {
+      if (!hasComp(selected_obj, comp_id))
+        continue;
+
+      var removeable = required_comp_ids.indexOf(comp_id) == -1;
       html += `
-        <tr><td colspan="2" class="component_name">${comp_id} <span class="remove_component link" data-component="${comp_id}">(remove)</span></td></tr>`;
+        <tr><td colspan="2" class="component_name">${comp_id} <span class="remove_component link" data-component="${comp_id}" ${removeable ? '' : 'style="display: none"'}>(remove)</span></td></tr>`;
 
       for (var prop of components[comp_id]) {
         var val = selected_obj[prop[ID]];
@@ -599,28 +580,32 @@ function updatePropertiesUI() {
     for (var remove_link of $('components_details').querySelectorAll('.remove_component')) {
       remove_link.addEventListener('click', function(evt) {
         var component_name = evt.target.getAttribute('data-component');
+        
+        // these two are, at present, required
+        if (required_comp_ids.indexOf(component_name) > -1)
+          return;
+
         var component_ix = selected_obj.components.indexOf(component_name);
         if (component_ix == -1)
           throw new Error(`Remove Component clicked but component ${component_name} not found in ${selected_obj.components}`);
         selected_obj.components.splice(component_ix, 1);
         updatePropertiesUI();
 
-        if (selected_obj.type == 'sprite') {
-          cascade(selected_obj, function(obj) {
-            var component_ix = obj.components.indexOf(component_name);
-            if (component_ix > -1)
-              obj.components.splice(component_ix, 1);
-          });
-        }
+        // if (selected_obj.type == 'sprite') {
+        //   cascade(selected_obj, function(obj) {
+        //     var component_ix = obj.components.indexOf(component_name);
+        //     if (component_ix > -1)
+        //       obj.components.splice(component_ix, 1);
+        //   });
+        // }
       });
     }
 
   }
   else {
+    hide('components_properties');
     hide('components_details');
   }
-  
-  // $('edit-img').textContent = 'Edit Image ' + /*obj.type*/;
 }
 
 function updateLayerUI() {
@@ -646,10 +631,10 @@ function updateTilesetUI() {
   tileset_ctx.drawImage(imgs[img_ix], 0, 0);
 
   // outline currently selected tile in tileset
-  if (selected_obj.type == 'sprite') {
+  if (selected_obj && selected_obj.type == 'sprite') {
     tileset_ctx.strokeStyle = '#3B88FD'; // selected styling
     tileset_ctx.lineWidth = 2;
-    tileset_ctx.strokeRect(selected_obj.x * tile_size, selected_obj.y * tile_size, tile_size, tile_size);
+    tileset_ctx.strokeRect(selected_obj.sprite_x * tile_size, selected_obj.sprite_y * tile_size, tile_size, tile_size);
   }
 }
 
@@ -667,6 +652,176 @@ function setSelectOptions(sel, options) {
     opt.value = option[1];
     sel.appendChild(opt); 
   }
+}
+
+
+// SYSTEMS:
+
+// TODO:
+// * RenderSystem (migrate from draw(); depends on Drawable, Positionable)
+// * PhysicsSystem (migrate from update(); depends on Positionable, Speed, Collideable, emits 'collide' & 'out of bounds')
+
+// uses Animateable
+function AnimationSystem() {
+}
+AnimationSystem.prototype.update = function() {
+  for (var obj of objects) {
+    if (hasComp(obj, 'Animateable')) {
+      if (obj.curr_frame < obj.frame_count && processInterval(obj, 'anim')) {
+        obj.sprite_x++;
+        obj.curr_frame++;
+      }
+    }
+  }
+};
+
+// uses Rotateable
+// function AISystem() {
+// }
+
+// uses Growable
+function GrowthSystem() {
+}
+GrowthSystem.prototype.update = function() {
+  for (var obj of objects) {
+    if (hasComp(obj, 'Growable')) {
+      if (processInterval(obj, 'grow')) {
+        // remove 'Growable' b/c each tile grows once (the next tile does the next growth)
+        obj.components.splice(obj.components.indexOf('Growable'), 1);
+
+        var x = obj.x + dir[obj.grow_dir].x * tile_size;
+        var y = obj.y + dir[obj.grow_dir].y * tile_size;
+
+        let sprite = getSpriteByID(obj.grow_sprite_id);
+        createObject(x, y, sprite, obj.layer_id);
+      }
+    }
+  }
+}
+
+function ShootSystem() {
+}
+ShootSystem.prototype.update = function() {
+  for (var obj of objects) {
+    if (hasComp(obj, 'Shoots')) {
+      if (processInterval(obj, 'shoot')) {
+        var sprite = getSpriteByID(obj.bullet_sprite_id);
+        createObject(obj.x, obj.y + tile_size, sprite);
+      }
+    }
+  }
+}
+
+// uses Bullet & Damageable, subscribes to 'collide'
+function HealthSystem() {
+  canvas.addEventListener('collide', function(evt) {
+    var bullet, damageable;
+    if (hasComp(evt.obj, 'Bullet') && hasComp(evt.other, 'Damageable')) {
+      bullet = evt.obj;
+      damageable = evt.other;
+    }
+    else if (hasComp(evt.other, 'Bullet') && hasComp(evt.obj, 'Damageable')) {
+      bullet = evt.other;
+      damageable = evt.obj;
+    }
+    else {
+      return;
+    }
+
+    damageable.health_pts -= bullet.damage_pts;
+    if (damageable.health_pts <= 0)
+      this.onDeath(damageable);
+  });
+}
+
+HealthSystem.prototype.onDeath = function() {
+  if (obj.death_anim_id) {
+    if (!hasComp(obj, 'Animateable'))
+      obj.components.push('Animateable');
+
+    let sprite = getSpriteByID(obj.death_anim_id);
+    obj.sprite_x = sprite.sprite_x;
+    obj.sprite_y = sprite.sprite_y;
+    obj.img_ix = sprite.img_ix;
+
+    obj.curr_frame = 0;
+    obj.frame_count = obj.death_anim_frame_count;
+    obj.anim_interval = obj.death_anim_interval;
+  }
+}
+
+HealthSystem.prototype.update = function() {
+};
+
+// uses Buyer & Has Money
+function MoneyManagementSystem() {
+  canvas.addEventListener('mousedown', function(evt) {
+    if (!is_playing)
+      return;
+
+    var pt = {
+      x: Math.floor((evt.pageX + viewport.transform_x) / zoom),
+      y: Math.floor((evt.pageY + viewport.transform_y) / zoom)
+    };
+
+    for (var obj of objects) {
+      if (hasComp(obj, 'Buyer') && hasComp(obj, 'Has Money')) {
+        if (obj.money >= obj.cost) {
+          obj.money -= obj.cost;
+
+          // render the purchased item on the highest layer
+          let layer_id;
+          var highest_order = null;
+          var highest_layer_id = null;
+          for (var layer of level.layers) {
+            if (highest_order == null || layer.order > highest_order) {
+              highest_order = layer.order;
+              highest_layer_id = layer.id;
+            }
+          }
+          layer_id = highest_layer_id;
+
+          // lookup sprite data
+          let sprite = getSpriteByID(obj.item_sprite_id);
+          
+          createObject(pxToGrid(pt.x) * tile_size, pxToGrid(pt.y) * tile_size, sprite);
+        }
+      }
+    }
+  });
+}
+
+MoneyManagementSystem.prototype.update = function() {
+  for (var obj of objects)
+    if (hasComp(obj, 'Has Money') && obj.earns_amt)
+      if (processInterval(obj, 'earns'))
+        obj.money += obj.earns_amt;
+};
+
+var systems = [
+  new AnimationSystem(),
+  new GrowthSystem(),
+  new ShootSystem(),
+  new HealthSystem(),
+  new MoneyManagementSystem()
+];
+
+function processInterval(obj, prefix) {
+  if (!is_playing)
+    return false;
+
+  var timestamp = Date.now();
+  if (timestamp - obj[prefix + '_timestamp'] > obj[prefix + '_interval']) {
+    obj[prefix + '_timestamp'] = timestamp;
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+function hasComp(obj, comp_id) {
+  return obj.components.indexOf(comp_id) > -1;
 }
 
 
@@ -707,18 +862,11 @@ function draw() {
     }
 
     // draw selection
-    if (selected_tile) {
+    if (selected_obj && selected_obj.type != 'sprite') {
       ctx.strokeStyle = '#3B88FD';
       ctx.lineWidth = 2;
-      ctx.strokeRect(selected_tile.x, selected_tile.y, selected_tile.w, selected_tile.h);
+      ctx.strokeRect(selected_obj.x, selected_obj.y, selected_obj.w, selected_obj.h);
     }
-
-    // draw player
-    // ctx.beginPath();
-    // var radius = tile_size / 2;
-    // ctx.arc(Math.floor(player.x) + radius, Math.floor(player.y) + radius, radius, 0, 2 * Math.PI, false);
-    // ctx.fillStyle = '#5b99f4';
-    // ctx.fill();
   }
   requestAnimationFrame(draw);
 }
@@ -731,101 +879,36 @@ function update() {
     if (obj.vel_y)
       obj.y += obj.vel_y;
 
-    // TODO: delete objects (bullets, etc) when they go outside the world bounds
-    
     if (obj.vel_x || obj.vel_y) {
       var obj_rect = getRect(obj);
-      if (!getIntersection(level_rect, obj_rect))
-        fireEvent(obj, 'out of bounds');
 
+      // delete Bullets when they go outside the level bounds (performance enhancement)
+      if (!getIntersection(level_rect, obj_rect)) {
+        if (hasComp(obj, 'Bullet'))
+          deleteObject(obj);
+      }
+
+      // detect collisions & emit collide events
       for (var obj2 of objects) {
         if (obj == obj2)
           continue;
 
         var collides = getIntersection(obj_rect, getRect(obj2));
         if (collides) {
-          fireEvent(obj, 'collide', null, obj2);
-          fireEvent(obj2, 'collide', null, obj);
+          var evt = new Event('collide');
+          evt.obj = obj;
+          evt.other = obj2;
+          canvas.dispatchEvent(evt);
         }
       }
     }
   }
 
-  // friction/drag
-  if (player.vel_x > 0)
-    player.vel_x -= 0.1;
-  else if (player.vel_y < 0)
-    player.vel_x += 0.1;
-  if (player.vel_y > 0)
-    player.vel_y -= 0.1;
-  else if (player.vel_y < 0)
-    player.vel_y += 0.1;
-
-  // y-axis acceleration (gravity) & x-axis acceleration (sideways gravity)
-  if (player.accel_y)
-    player.vel_y += player.accel_y;
-  if (player.accel_x)
-    player.vel_x += player.accel_x;
-
-  // TODO: use a clamp() function
-  if (player.vel_x > MAX_VEL)
-    player.vel_x = MAX_VEL;
-  else if (player.vel_x < -MAX_VEL)
-    player.vel_x = -MAX_VEL;
-  if (player.vel_y > MAX_VEL)
-    player.vel_y = MAX_VEL;
-  else if (player.vel_y < -MAX_VEL)
-    player.vel_y = -MAX_VEL;
-
-  player.x = player.x + player.vel_x;
-  player.y = player.y + player.vel_y;
-
-  // super-simple AABB collision detection & "slide" resolution
-  // TODO: switch to the algorithm outlined in:
-  // http://higherorderfun.com/blog/2012/05/20/the-guide-to-implementing-2d-platformers/
-
-  // TEMP: comment out player-oriented collision code
-  // since we're not using it right now & it's killing perf
-
-  // for (var i = 0; i < objects.length; i++) {
-  //   var obj = objects[i];
-  //   var intersection = getIntersection(getRect(player), getRect(obj));
-  //   if (intersection) {
-  //     if (obj.is_solid) { // is_solid is deprecated, try Collideable
-  //       var x_overlap = intersection.x2 - intersection.x1;
-  //       var y_overlap = intersection.y2 - intersection.y1;
-  //       if (x_overlap < y_overlap) {
-  //         // back out the x overlap
-  //         var player_on_left = player.x < obj.x;
-  //         if (player_on_left)
-  //           player.x -= x_overlap;
-  //         else
-  //           player.x += x_overlap;
-  //         player.vel_x = 0;
-  //       }
-  //       else {
-  //         // back out the y overlap
-  //         var player_above = player.y < obj.y;
-  //         if (player_above)
-  //           player.y -= y_overlap;
-  //         else
-  //           player.y += y_overlap;
-
-  //         // drop the y velocity to zero on a vertical collision
-  //         // w/out this, the constant collisions caused by gravity
-  //         // cause some side-effects
-  //         // but sometimes it's not perfect, like when hitting a corner
-  //         // dropping the `vel_x` to zero makes the sideways velocity drop to zero sometimes
-  //         // when dropping to the ground
-  //         player.vel_y = 0;
-  //       }
-  //     }
-  //     fireEvent(obj, 'collide');
-  //   }
-  // }
-
   if (player.vel_x || player.vel_y)
     viewport.follow(player);
+
+  for (var system of systems)
+    system.update();
 }
 
 function getRect(obj) {
@@ -874,9 +957,53 @@ $('levels').addEventListener('change', function(evt) {
 });
 
 $('new_level').addEventListener('click', function(evt) {
-  levels.push({objects: [], type: 'level', layers: [{id: 1, order: 0, visible: true}]});
+  levels.push({objects: [], layers: [{id: 1, order: 0, visible: true}]});
   loadLevel(levels.length);
 });
+
+// focusout is like blur, but it bubbles so we can capture on the parent
+$('components_details').addEventListener('focusout', onPropertyUpdate);
+$('components_details').addEventListener('change', onPropertyUpdate);
+
+function onPropertyUpdate(evt) {
+  let prop_id = evt.target.getAttribute('id');
+
+  // loop to find meta
+  let prop_meta;
+  for (var comp_id in components) {
+    let component = components[comp_id];
+    for (let prop of component)
+      if (prop[ID] == prop_id)
+        prop_meta = prop;
+  }
+  
+  if (!prop_meta)
+    throw new Error(`unable to find property metadata for id="${prop_id}"`);
+
+  let type = prop_meta[TYPE];  
+  let val = evt.target.value;
+  if (type.startsWith('array:')) {
+    type = type.replace('array:', '');
+    val = val.split(',').map(s => parseVal(s, type));
+  }
+  else {
+    val = parseVal(val, type);
+  }
+  selected_obj[prop_meta[ID]] = val;
+}
+
+function parseVal(str, type) {
+  str = str.trim();
+
+  if (type == 'int')
+    return str ? parseInt(str) : 0;
+  else if (type == 'float')
+    return str ? parseFloat(str) : 0;
+  else if (type == 'string')
+    return str;
+  else
+    throw new Error(`Unsupported component property type: "${type}"`);
+}
 
 $('obj_id').addEventListener('blur', onTextInputChange);
 $('obj_id').addEventListener('change', onTextInputChange);
@@ -891,27 +1018,33 @@ $('add_components').addEventListener('change', function(evt) {
 });
 
 function addComponent(component_name) {
-  if (selected_obj.components.includes(component_name))
+  if (!selected_obj)
+    throw new Error('addComponent called w/ no selected_obj');
+  if (hasComp(selected_obj, component_name))
     return;
 
   selected_obj.components.push(component_name);
   updatePropertiesUI();
 
   // cascade the type addition to all objects using this sprite
-  if (selected_obj.type == 'sprite') {
-    cascade(selected_obj, function(obj) {
-      if (!obj.components.includes(component_name))
-        obj.components.push(component_name)
-    });
-  }
+  // QUESTION: should we cascade the default values if there aren't any on the objects?
+  //   That'd be nice, but it'd be far more valuable to cascade the values the user sets...
+  //   but how do we know the values on the obj weren't intentional overrides?!
+
+  // if (selected_obj.type == 'sprite') {
+  //   cascade(selected_obj, function(obj) {
+  //     if (!hasComp(obj, component_name))
+  //       obj.components.push(component_name)
+  //   });
+  // }
 }
 
 // cascade changes to all objects that use a sprite
-function cascade(sprite, cb) {
-  for (var obj of objects)
-    if (obj.sprite_x == sprite.x && obj.sprite_y == sprite.y)
-      cb(obj);
-}
+// function cascade(sprite, cb) {
+//   for (var obj of objects)
+//     if (obj.sprite_x == sprite.sprite_x && obj.sprite_y == sprite.sprite_y && obj.img_ix == sprite.img_ix)
+//       cb(obj);
+// }
 
 $('cancel_add_component').addEventListener('click', function() {
   hideAddComponentUI();
@@ -936,12 +1069,6 @@ function onTextInputChange(evt) {
   else
     throw new Error('text input change called without a selected object');
 }
-
-
-// $('edit-img').addEventListener('click', function() {
-//   if (selected_tile)
-//     edit(/*selected_tile.type*/);
-// });
 
 $('layers').addEventListener('change', function(evt) {
   layer = level.layers.find(l => l.id == evt.target.value);
@@ -1028,16 +1155,32 @@ $('tileset').addEventListener('click', function(evt) {
   var curr_sprite_y = pxToGrid(y);
 
   // toggle selection on click of sprite
-  if (selected_obj.type == 'sprite' && selected_obj.x == curr_sprite_x && selected_obj.y == curr_sprite_y)
+  if (selected_obj && selected_obj.type == 'sprite' && selected_obj.sprite_x == curr_sprite_x && selected_obj.sprite_y == curr_sprite_y)
     return deselect();
   
   var sprite = getSprite(curr_sprite_x, curr_sprite_y);
   if (!sprite) {
-    sprite = {type: 'sprite', id: '', x: curr_sprite_x, y: curr_sprite_y, components: []};
+    sprite = {
+      type: 'sprite',
+      id: '',
+      sprite_x: curr_sprite_x,
+      sprite_y: curr_sprite_y,
+      img_ix: img_ix,
+
+      components: []
+    };
     setSprite(sprite);
   }
   select(sprite);
 });
+
+function clonePropsFromSprite(obj, sprite) {
+  for (var prop in sprite)
+    if (prop != 'type' && prop != 'id')
+      obj[prop] = sprite[prop];
+  
+  obj.components = obj.components.slice();
+}
 
 function getSprite(sprite_x, sprite_y) {
   var sprite_coords = `${sprite_x},${sprite_y}`;
@@ -1046,7 +1189,7 @@ function getSprite(sprite_x, sprite_y) {
 }
 
 function setSprite(sprite) {
-  var sprite_coords = `${sprite.x},${sprite.y}`;
+  var sprite_coords = `${sprite.sprite_x},${sprite.sprite_y}`;
   var sprites = imgs[img_ix].sprites;
   sprites[sprite_coords] = sprite;
 }
@@ -1157,10 +1300,9 @@ document.addEventListener('keydown', function(evt) {
     player.vel_y = -5;
   else if (evt.keyCode == DOWN && player.accel_x != 0)
     player.vel_y = 5;
-  else if (evt.keyCode == DEL && selected_tile) {
-    var tile = selected_tile;
+  else if (evt.keyCode == DEL && selected_obj && selected_obj.type != 'sprite') {
     deselect();
-    deleteObject(tile);
+    deleteObject(selected_obj);
   }
   else if (evt.keyCode == ESC) {
     if (img_editor) {
@@ -1174,14 +1316,6 @@ document.addEventListener('keydown', function(evt) {
     }
   }
 });
-
-// function edit(img_ix) {
-//   if (!img_editor) {
-//     deselect();
-//     img_editor = new ImageEditor(ctx, img_ix);
-//     game_editor.destroy();
-//   }
-// }
 
 function save() {
   if (!game_name)
@@ -1360,235 +1494,13 @@ function showDesignUI() {
   show('sidebar', 'load', 'save', 'export', 'coords');
 }
 
-/*function ImageEditor(ctx, img_ix) {
-  this.color_ix = 0;
-  this.img_ix = img_ix;
-  this.px_size = 15;
-  this.y = 50;
-  this.x = 5;
-  this.is_drawing = false;
-  this.is_erasing = false;
-  if (!imgs[img_ix]) {
-    imgs[img_ix] = ctx.createImageData(tile_size, tile_size);
-
-    // pre-fill new images to all-white
-    var data = imgs[img_ix].data;
-    for (var i = 0; i < data.length; i++)
-      data[i] = 255;
-  }
-  this.img_data = imgs[img_ix];
-  this.ctx = ctx;
-
-  // reset the transform from the game's viewport
-  this.ctx.setTransform(zoom, 0, 0, zoom, 0, 0);
-
-  this.updateColorIndicator();
-
-  this.onKeyPress = this.onKeyPress.bind(this);
-  this.onMouseDown = this.onMouseDown.bind(this);
-  this.onMouseMove = this.onMouseMove.bind(this);
-  document.addEventListener('keypress', this.onKeyPress);
-  document.addEventListener('mousemove', this.onMouseMove);
-  document.addEventListener('mousedown', this.onMouseDown);
-};
-
-// official DawnBringer16 palette
-ImageEditor.rgb = [
-  [20, 12, 28], // #140C1C Black
-  [68, 36, 52], // #442434 Dark Red
-  [48, 52, 109], // #30346D Dark Blue
-  [78, 74, 78], // #4E4A4F Dark Gray
-  [133, 76, 48], // #854C30 Brown
-  [52, 101, 36], // #346524 Dark Green
-  [208, 70, 72], // #D04648 Red
-  [117, 113, 97], // #757161 Light Gray
-  [89, 125, 206], // #597DCE Light Blue
-  [210, 125, 44], // #D27D2C Orange
-  [133, 149, 161], // #8595A1 Blue/Gray
-  [109, 170, 44], // #6DAA2C Light Green
-  [210, 170, 153], // #D2AA99 Peach
-  [109, 194, 202], // #6DC2CA Cyan
-  [218, 212, 94], // #DAD45E Yellow
-  [222, 238, 214] // #DEEED6 White
-];
-
-ImageEditor.prototype.onMouseDown = function(evt) {
-  var x = Math.floor((evt.pageX - this.x) / this.px_size);
-  var y = Math.floor((evt.pageY - this.y) / this.px_size);
-
-  // user clicked outside the image size
-  if (x < 0 || x >= tile_size || y < 0 || y >= tile_size)
-    return;
-
-  if (this.isPixel(x, y, this.color_ix)) {
-    this.is_erasing = true;
-    this.is_drawing = false;
-  }
-  else {
-    this.is_erasing = false;
-    this.is_drawing = true;
-  }
-
-  if (this.is_erasing)
-    this.clearPixel(x, y);
-  else if (this.is_drawing)
-    this.setPixel(x, y, this.color_ix);
-};
-
-ImageEditor.prototype.onMouseMove = function(evt) {
-  if (evt.buttons %2 != LEFT_BTN)
-    return;
-
-  var x = Math.floor((evt.pageX - this.x) / this.px_size);
-  var y = Math.floor((evt.pageY - this.y) / this.px_size);
-
-  // user is dragging outside the image size
-  if (x < 0 || x >= tile_size || y < 0 || y >= tile_size)
-    return;
-
-  if (this.is_erasing)
-    this.clearPixel(x, y);
-  else if (this.is_drawing)
-    this.setPixel(x, y, this.color_ix);
-};
-
-ImageEditor.prototype.setPixel = function(x, y, color_ix) {
-  var ix = this.coordsToIx(this.img_data.width, x, y);
-  var rgb = ImageEditor.rgb[color_ix];
-  var data = this.img_data.data;
-  data[ix] = rgb[0];
-  data[ix+1] = rgb[1];
-  data[ix+2] = rgb[2];
-  data[ix+3] = 255; // alpha channel
-};
-
-ImageEditor.prototype.isPixel = function(x, y, color_ix) {
-  var ix = this.coordsToIx(this.img_data.width, x, y);
-  var data = this.img_data.data;
-  var rgb = ImageEditor.rgb[color_ix];
-  return data[ix] == rgb[0] || data[ix+1] == rgb[1] || data[ix+2] == rgb[2]
-};
-
-ImageEditor.prototype.clearPixel = function(x, y) {
-  var ix = this.coordsToIx(this.img_data.width, x, y);
-  var data = this.img_data.data;
-  data[ix] = 255;
-  data[ix+1] = 255;
-  data[ix+2] = 255;
-  data[ix+3] = 255; // alpha channel
-};
-
-ImageEditor.prototype.onKeyPress = function(evt) {
-  if (evt.keyCode == '0'.charCodeAt(0))
-    this.setColor(0);
-  else if (evt.keyCode == '1'.charCodeAt(0))
-    this.setColor(1);
-  else if (evt.keyCode == '2'.charCodeAt(0))
-    this.setColor(2);
-  else if (evt.keyCode == '3'.charCodeAt(0))
-    this.setColor(3);
-  else if (evt.keyCode == '4'.charCodeAt(0))
-    this.setColor(4);
-  else if (evt.keyCode == '5'.charCodeAt(0))
-    this.setColor(5);
-  else if (evt.keyCode == '6'.charCodeAt(0))
-    this.setColor(6);
-  else if (evt.keyCode == '7'.charCodeAt(0))
-    this.setColor(7);
-  else if (evt.keyCode == '8'.charCodeAt(0))
-    this.setColor(8);
-  else if (evt.keyCode == '9'.charCodeAt(0))
-    this.setColor(9);
-  else if (evt.keyCode == 'f'.charCodeAt(0))
-    this.fill(this.color_ix);
-};
-
-ImageEditor.prototype.setColor = function(color_ix) {
-  this.color_ix = color_ix;
-  this.updateColorIndicator();
-};
-
-ImageEditor.prototype.updateColorIndicator = function() {
-  var rgb = ImageEditor.rgb[this.color_ix];
-  $('cur_color').style.backgroundColor = 'rgb(' + rgb[0] + ', ' + rgb[1] + ', ' + rgb[2] + ')';
-};
-
-ImageEditor.prototype.fill = function(color_ix) {
-  for (var x = 0; x < tile_size; x++)
-    for (var y = 0; y < tile_size; y++)
-      this.setPixel(x, y, color_ix);
-};
-
-ImageEditor.prototype.draw = function() {
-  var img_w = this.img_data.width;
-  var data = this.img_data.data;
-  for (var i = 0; i < data.length; i = i + 4) {
-    this.ctx.fillStyle = 'rgb(' + data[i] + ', ' + data[i+1] + ', ' + data[i+2] + ')';
-    var coords = this.ixToCoords(img_w, i);
-    this.ctx.fillRect(coords.x * this.px_size + this.x, coords.y * this.px_size + this.y, this.px_size, this.px_size);
-  }
-
-  this.ctx.strokeStyle = '#000000';
-  this.ctx.lineWidth = 1;
-  this.ctx.strokeRect(1 + this.x, 1 + this.y, this.px_size * tile_size, this.px_size * tile_size);
-  this.ctx.lineWidth = 0;
-};
-
-ImageEditor.prototype.ixToCoords = function(img_w, i) {
-  i = i / 4;
-  x = i % img_w;
-  y = (i - x) / img_w;
-  return {x: x, y: y};
-};
-
-ImageEditor.prototype.coordsToIx = function(img_w, x, y) {
-  return (x + y * img_w) * 4;
-};
-
-ImageEditor.prototype.destroy = function() {
-  document.removeEventListener('keypress', this.onKeyPress);
-  document.removeEventListener('mousedown', this.onMouseDown);
-  document.removeEventListener('mousemove', this.onMouseMove);
-};*/
-
-
-
-// public API functions (available to the game designer)
-
-function setGravity(x, y) {
-  if (x != null)
-    player.accel_x = x;
-  if (y != null)
-    player.accel_y = y;
-}
-
-function setSpeed(x, y) {
-  if (x != null)
-    player.vel_x = x;
-  if (y != null)
-    player.vel_y = y;
-}
-
-function setPosition(x, y) {
-  if (x != null)
-    player.x = x * tile_size;
-  if (y != null)
-    player.y = y * tile_size;
-}
-
-function setStart(x, y) {
-  if (x != null)
-    start_x = x * tile_size;
-  if (y != null)
-    start_y = y * tile_size;
-}
 
 function loadLevel(level_n) {
   unloadLevel();
 
   level_num = level_n;
   level = levels[level_num - 1];
-  select(level);
+  deselect();
   updateLevelsUI();
 
   objects = level.objects;
@@ -1607,8 +1519,6 @@ function unloadLevel() {
   if (!level)
     return;
 
-  clearTimeouts(level);
-
   if (level.objects != objects)
     throw new Error('level.objects != objects (due to hacking objects in console?)');
 
@@ -1623,7 +1533,6 @@ function startLevel() {
   var level_bottom = null;
   var level_right = null;
 
-  fireEvent(level, 'start');
   for (var obj of objects) {
     if (level.x == null || obj.x < level.x)
       level.x = obj.x;
@@ -1636,159 +1545,59 @@ function startLevel() {
     var obj_right = obj.x + obj.w;
     if (level_right == null || obj_right > level_right)
       level_right = obj_right;
-
-    fireEvent(obj, 'create');
   }
   level.h = level_bottom - level.y;
   level.w = level_right - level.x;
 }
 
-function createTile(grid_x, grid_y, sprite_id, layer_id) {
-  // default to the lowest layer
-  if (layer_id == null) {
-    var lowest_order = null;
-    var lowest_layer_id = null;
-    for (var layer of level.layers) {
-      if (lowest_order == null || layer.order < lowest_order) {
-        lowest_order = layer.order;
-        lowest_layer_id = layer.id;
-      }
-    }
-    layer_id = lowest_layer_id;
-  }
-
-  // lookup sprite data
-  var sprite_x;
-  var sprite_y;
-  var spritesheet_ix;
-  var components;
-  for (var img_ix = 0; img_ix < imgs.length; ++img_ix) {
-    var img = imgs[img_ix];
-    if (img) {
-      for (var coords in img.sprites) {
-        var sprite = img.sprites[coords];
-        if (sprite.id == sprite_id) {
-          sprite_x = sprite.x;
-          sprite_y = sprite.y;
-          spritesheet_ix = img_ix;
-          components = sprite.components.slice() || [];
-        }
-      }
-    }
-  }
-
-  var tile = createTileInternal(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, components, layer_id);
-  fireEvent(tile, 'create');
-  return tile;
-}
-function createTileInternal(grid_x, grid_y, sprite_x, sprite_y, spritesheet_ix, components, layer_id) {
+function createObject(x, y, sprite, layer_id) {
   if (layer_id == null)
     layer_id = layer.id;
-  if (spritesheet_ix == null)
-    spritesheet_ix = 0;
 
-  if (!components) {
-    var sprite = getSprite(sprite_x, sprite_y);
-    if (sprite && sprite.components)
-      components = sprite.components.slice();
-    else
-      components = [];
-  }
-
-  x = grid_x * tile_size;
-  y = grid_y * tile_size;
   var obj = {
+    // Positionable
     x: x,
     y: y,
     w: tile_size,
     h: tile_size,
+    
+    // Drawable (the others are derived from sprite)
     layer_id: layer_id,
-    sprite_x: sprite_x,
-    sprite_y: sprite_y,
-    img_ix: spritesheet_ix,
+
+    // TODO: remove these
     type: 'tile',
-    components: components,
     timeout_ids: null
   };
 
+  clonePropsFromSprite(obj, sprite);
+
+  for (let comp_id of required_comp_ids)
+    if (!hasComp(obj, comp_id))
+      obj.components.push(comp_id);
+
+  // set default properties for components
+  for (let component_name in components)
+    if (hasComp(obj, component_name))
+      for (let prop of components[component_name])
+        if (!(prop[ID] in obj))
+          obj[prop[ID]] = prop[DEFAULT];
+
   objects.push(obj);  
   return obj;
-}
-
-function cloneTile(tile, overrides, layer_id) {
-  var new_tile = {};
-  for (var prop in tile) {
-    var val = tile[prop];
-    if (prop in overrides)
-      val = overrides[prop];
-
-    if (Array.isArray(val))
-      new_tile[prop] = val.slice();
-    else
-      new_tile[prop] = val;
-  }
-
-  if (layer_id != null)
-    new_tile.layer_id = layer_id;
-
-  // if components are explicit and sprite_x/y are
-  // then components should be derived from the new sprite_x/y
-  if (!('components' in overrides) && ('sprite_x' in overrides || 'sprite_y' in overrides)) {
-    var sprite = getSprite(new_tile.sprite_x, new_tile.sprite_y);
-    new_tile.components = (sprite && sprite.components.slice()) || [];
-  }
-
-  objects.push(new_tile);
-  fireEvent(new_tile, 'create');
-  return new_tile;
 }
 
 function deleteObject(obj) {
   var ix = objects.indexOf(obj);
   if (ix > -1)
     objects.splice(ix, 1);
-
-  clearTimeouts(obj);
 }
 
-function clearTimeouts(obj) {
-  if (obj.timeout_ids) {
-    obj.timeout_ids.forEach(id => clearTimeout(id));
-    obj.timeout_ids = [];
-  }
-}
-
-function getTile(grid_x, grid_y, layer_id) {
-  var x = grid_x * tile_size;
-  var y = grid_y * tile_size;
-  
-  var layers;
-  if (layer_id != null) {
-    layers = [level.layers.find(l => l.id == layer_id)];
-  }
-  else {
-    layers = level.layers.slice();
-    layers.reverse(); // default (rendering) order is bottom-to-top; we want to get top-most first
-  }
-
-  for (var layer of layers)
-    for (var obj of objects)
-      if (obj.x == x && obj.y == y && obj.layer_id == layer.id)
-        return obj;
-}
-
-function getGridX(obj) {
-  return Math.floor(obj.x / tile_size);
-}
-function setGridX(obj, grid_x) {
-  obj.x = grid_x * tile_size;
-}
-
-function getGridY(obj) {
-  return Math.floor(obj.y / tile_size);
-}
-function setGridY(obj, grid_y) {
-  obj.y = grid_y * tile_size;
+function getSpriteByID(sprite_id) {
+  for (let img of imgs)
+    if (img)
+      for (var coords in img.sprites)
+        if (img.sprites[coords].id == sprite_id)
+          return img.sprites[coords];
 }
 
 function setStatus(str) {
@@ -1797,76 +1606,6 @@ function setStatus(str) {
 
 function setCursor(cursor_id) {
   $('canvas').style.cursor = cursor_id;
-}
-
-async function animate(obj, steps, seconds_per_step) {
-  for (var step = 0; step < steps; step++) {
-    await timeout(seconds_per_step, obj);
-    obj.sprite_x++;
-  }
-}
-
-function fireEvent(obj, evt_name, this_obj, data) {
-  // only fire events when in gameplay mode, not design-mode
-  if (!is_playing)
-    return;
-
-  if (obj.type == 'tile') {
-    for (var component_name of obj.components) {
-      var component = components[component_name];
-      if (component)
-        fireEvent(component, evt_name, obj, data);
-    }
-    return;
-  }
-  else if (obj.type == 'level') {
-    this_obj = obj;
-  }
-  else if (obj.type == 'type') {
-    // pass through; these are called recursively from tile.components
-  }
-  else {
-    throw new Error(`Unexpected object passed to fireEvent, type ${obj.type}`);
-  }
-
-  var handler_name = 'on_' + evt_name;
-  if (!obj[handler_name])
-    return;
-
-  try {
-    obj[handler_name].call(this_obj, data);
-  }
-  catch(err) {
-    alert(err.message);
-
-    if (selected_obj == this_obj)
-      updatePropertiesUI();
-  }
-}
-
-async function timeout(seconds, obj) {
-  if (!obj)
-    throw new Error('timeout called without an object, so it cannot be cancelled');
-
-  return new Promise(function(resolve, reject) {
-    var timeout_id = setTimeout(function() {
-      // remove timeout_id from list of active timeout_ids
-      if (obj && obj.timeout_ids) {
-        var ix = obj.timeout_ids.indexOf(timeout_id);
-        if (ix > -1)
-          obj.timeout_ids.splice(ix, 1);
-      }
-
-      resolve();
-    }, seconds * 1000);
-    
-    // add timeout_id to list of active timeout_ids
-    if (obj) {
-      if (!obj.timeout_ids)
-        obj.timeout_ids = [];
-      obj.timeout_ids.push(timeout_id);
-    }
-  });
 }
 
 </script>
