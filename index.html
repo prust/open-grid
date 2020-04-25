@@ -710,9 +710,10 @@ function AnimationSystem() {
 AnimationSystem.prototype.update = function() {
   for (var obj of objects) {
     if (hasComp(obj, 'Animateable')) {
-      if (obj.curr_frame < obj.frame_count && processInterval(obj, 'anim')) {
+      var dest_frame_num = obj.curr_frame + 1;
+      if (dest_frame_num < obj.frame_count && processInterval(obj, 'anim')) {
         obj.sprite_x++;
-        obj.curr_frame++;
+        obj.curr_frame = dest_frame_num;
       }
     }
   }
@@ -726,19 +727,22 @@ AnimationSystem.prototype.update = function() {
 function GrowthSystem() {
 }
 GrowthSystem.prototype.update = function() {
-  for (var obj of objects) {
-    if (hasComp(obj, 'Growable')) {
-      if (processInterval(obj, 'grow')) {
-        // remove 'Growable' b/c each tile grows once (the next tile does the next growth)
-        obj.components.splice(obj.components.indexOf('Growable'), 1);
+  let objects_to_grow = [];
+  for (let obj of objects)
+    if (hasComp(obj, 'Growable'))
+      if (processInterval(obj, 'grow'))
+        objects_to_grow.push(obj);
+  
+  // do the createObject outside the objects loop, to avoid infinite recursion
+  for (let obj of objects_to_grow) {
+    // remove 'Growable' b/c each tile only grows once (the next tile does the next growth)
+    obj.components.splice(obj.components.indexOf('Growable'), 1);
 
-        var x = obj.x + dir[obj.grow_dir].x * tile_size;
-        var y = obj.y + dir[obj.grow_dir].y * tile_size;
+    let x = obj.x + dir[obj.grow_dir].x * tile_size;
+    let y = obj.y + dir[obj.grow_dir].y * tile_size;
 
-        let sprite = getSpriteByID(obj.grow_sprite_id);
-        createObject(x, y, sprite, obj.layer_id);
-      }
-    }
+    let sprite = getSpriteByID(obj.grow_sprite_id);
+    let grown_obj = createObject(x, y, sprite, obj.layer_id);
   }
 }
 
@@ -749,7 +753,7 @@ ShootSystem.prototype.update = function() {
     if (hasComp(obj, 'Shoots')) {
       if (processInterval(obj, 'shoot')) {
         var sprite = getSpriteByID(obj.bullet_sprite_id);
-        createObject(obj.x, obj.y + tile_size, sprite);
+        createObject(obj.x, obj.y, sprite);
       }
     }
   }
@@ -853,9 +857,11 @@ function processInterval(obj, prefix) {
   if (!is_playing)
     return false;
 
-  var timestamp = Date.now();
-  if (timestamp - obj[prefix + '_timestamp'] > obj[prefix + '_interval']) {
-    obj[prefix + '_timestamp'] = timestamp;
+  var curr_time = Date.now();
+  var ts_prop = prefix + '_timestamp';
+  obj[ts_prop] = obj[ts_prop] || Date.now();
+  if (curr_time - obj[ts_prop] > obj[prefix + '_interval']) {
+    obj[ts_prop] = curr_time;
     return true;
   }
   else {
@@ -950,8 +956,9 @@ function update() {
   if (player.vel_x || player.vel_y)
     viewport.follow(player);
 
-  for (var system of systems)
-    system.update();
+  if (is_playing)
+    for (var system of systems)
+      system.update();
 }
 
 function getRect(obj) {
