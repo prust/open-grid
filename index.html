@@ -188,6 +188,8 @@ var tile_size = 16;
 var num_tiles_w = 0;
 var num_tiles_h = 0;
 var selected_obj = null;
+var tileset_sel = null;
+var tileset_hover = null;
 var img_editor = null;
 var start_x = 0;
 var start_y = 0;
@@ -630,11 +632,52 @@ function updateTilesetUI() {
   tileset_ctx.imageSmoothingEnabled = false;
   tileset_ctx.drawImage(imgs[img_ix], 0, 0);
 
-  // outline currently selected tile in tileset
-  if (selected_obj && selected_obj.type == 'sprite') {
+  var x, y, w, h;
+  if (tileset_sel) {
+    let sel = tileset_sel;
+    x = sel.start_x < sel.end_x ? sel.start_x : sel.end_x;
+    y = sel.start_y < sel.end_y ? sel.start_y : sel.end_y;
+    w = Math.abs(sel.end_x - sel.start_x) + 1;
+    h = Math.abs(sel.end_y - sel.start_y) + 1;
+    tileset_ctx.strokeStyle = '#FF0000';
+    tileset_ctx.lineWidth = 2;
+    tileset_ctx.strokeRect(x * tile_size, y * tile_size, w * tile_size, h * tile_size);
+  }
+  else if (selected_obj && selected_obj.type == 'sprite') {
+    // outline currently selected tile in tileset
+    let obj = selected_obj;
+    x = obj.sprite_x * tile_size;
+    y = obj.sprite_y * tile_size;
+    w = obj.w;
+    h = obj.h;
+
+    // display hit box so the game designer can visually see the hit area
+    var has_hit_box = obj.padding_left || obj.padding_right || obj.padding_top || obj.padding_bottom;
+    if (has_hit_box) {
+      var hit_x = x + (obj.padding_left || 0);
+      var hit_y = y + (obj.padding_top || 0);
+      var hit_w = w - (obj.padding_left || 0) - (obj.padding_right || 0);
+      var hit_h = h - (obj.padding_top || 0) - (obj.padding_bottom || 0);
+    }
+
+    // display hit box first, so it's underneath the selection box
+    if (has_hit_box) {
+      tileset_ctx.strokeStyle = '#FFFF00';
+      tileset_ctx.lineWidth = 2;
+      tileset_ctx.strokeRect(hit_x, hit_y, hit_w, hit_h);
+    }
+    
+    // draw selection box 2nd, so it's on top
     tileset_ctx.strokeStyle = '#3B88FD'; // selected styling
     tileset_ctx.lineWidth = 2;
-    tileset_ctx.strokeRect(selected_obj.sprite_x * tile_size, selected_obj.sprite_y * tile_size, tile_size, tile_size);
+    tileset_ctx.strokeRect(x, y, w, h);
+  }
+
+  if (tileset_hover) {
+    let sprite = tileset_hover;
+    tileset_ctx.strokeStyle = '#99CCFF'; // selected styling
+    tileset_ctx.lineWidth = 2;
+    tileset_ctx.strokeRect(sprite.sprite_x * tile_size, sprite.sprite_y * tile_size, sprite.w, sprite.h);
   }
 }
 
@@ -855,7 +898,7 @@ function draw() {
 
         if ('opacity' in obj)
           ctx.globalAlpha = obj.opacity;
-        ctx.drawImage(imgs[obj.img_ix], obj.sprite_x * tile_size, obj.sprite_y * tile_size, tile_size, tile_size, obj.x, obj.y, tile_size, tile_size);
+        ctx.drawImage(imgs[obj.img_ix], obj.sprite_x * tile_size, obj.sprite_y * tile_size, obj.w, obj.h, obj.x, obj.y, obj.w, obj.h);
         if ('opacity' in obj)
           ctx.globalAlpha = 1;
       }
@@ -924,9 +967,9 @@ function getRect(obj) {
   return rect;
 }
 
-function intersectsPoint(rect, pt) {
-  return rect.x <= pt.x && rect.x + rect.w > pt.x &&
-    rect.y <= pt.y && rect.y + rect.h > pt.y;
+function intersectsPoint(obj, pt) {
+  return obj.x <= pt.x && obj.x + obj.w > pt.x &&
+    obj.y <= pt.y && obj.y + obj.h > pt.y;
 }
 
 function getIntersection(rect1, rect2) {
@@ -990,6 +1033,11 @@ function onPropertyUpdate(evt) {
     val = parseVal(val, type);
   }
   selected_obj[prop_meta[ID]] = val;
+
+  // TODO: move this & ECS-ify it by making a tileset/sprite rendering system
+  // depend on the component w/ padding & subscribe to padding changes
+  if (prop_meta[ID].startsWith('padding_'))
+    updateTilesetUI();
 }
 
 function parseVal(str, type) {
@@ -1145,34 +1193,181 @@ $('tilesets').addEventListener('change', function(evt) {
   updateTilesetUI();
 });
 
-$('tileset').addEventListener('click', function(evt) {
+$('tileset').addEventListener('mousemove', function(evt) {
   if (!imgs.length)
     return;
+  if (tileset_sel)
+    return;
+
+  var x = evt.pageX - getClientLeft(evt.target);
+  var y = evt.pageY - getClientTop(evt.target);
+  var sprite = getSprite(x, y);
+  if (sprite != tileset_hover) {
+    tileset_hover = sprite;
+    updateTilesetUI();
+  }
+});
+
+$('tileset').addEventListener('mousedown', function(evt) {
+  if (!imgs.length)
+    return;
+
+  // JIC these old ones are left over (we can't guarantee a mousemove/mouseup will fire)
+  if (window.g_tileset_mousemove_handler)
+    document.removeEventListener('mousemove', g_tileset_mousemove_handler);
+  if (window.g_tileset_mouseup_handler)
+    document.removeEventListener('mouseup', g_tileset_mouseup_handler);
 
   var x = evt.pageX - getClientLeft(evt.target);
   var y = evt.pageY - getClientTop(evt.target);
   var curr_sprite_x = pxToGrid(x);
   var curr_sprite_y = pxToGrid(y);
-
-  // toggle selection on click of sprite
-  if (selected_obj && selected_obj.type == 'sprite' && selected_obj.sprite_x == curr_sprite_x && selected_obj.sprite_y == curr_sprite_y)
-    return deselect();
   
-  var sprite = getSprite(curr_sprite_x, curr_sprite_y);
-  if (!sprite) {
-    sprite = {
-      type: 'sprite',
-      id: '',
-      sprite_x: curr_sprite_x,
-      sprite_y: curr_sprite_y,
-      img_ix: img_ix,
+  tileset_sel = {
+    start_x: curr_sprite_x,
+    start_y: curr_sprite_y,
+    end_x: curr_sprite_x,
+    end_y: curr_sprite_y
+  };
+  updateTilesetUI();
 
-      components: []
-    };
-    setSprite(sprite);
-  }
-  select(sprite);
+  window.g_tileset_mousemove_handler = function(evt) {
+    // user is no longer clicking, but somehow 'mouseup' didn't fire (not sure if this ever happens)
+    if (evt.buttons % 2 != LEFT_BTN) {
+      document.removeEventListener('mousemove', g_tileset_mousemove_handler);
+      document.removeEventListener('mouseup', g_tileset_mouseup_handler);
+      tileset_sel = null;
+      return;
+    }
+
+    if (!tileset_sel)
+      throw new Error('mousemove somehow fired without a selected object');
+
+    var x = evt.pageX - getClientLeft(evt.target);
+    var y = evt.pageY - getClientTop(evt.target);
+    tileset_sel.end_x = pxToGrid(x);
+    tileset_sel.end_y = pxToGrid(y);
+    updateTilesetUI();
+  };
+  document.addEventListener('mousemove', g_tileset_mousemove_handler);
+
+  window.g_tileset_mouseup_handler = function(evt) {
+    document.removeEventListener('mousemove', g_tileset_mousemove_handler);
+    document.removeEventListener('mouseup', g_tileset_mouseup_handler);
+
+    if (!tileset_sel)
+      throw new Error('mouseup somehow fired without a selected object');
+      
+    var x = evt.pageX - getClientLeft(evt.target);
+    var y = evt.pageY - getClientTop(evt.target);
+    tileset_sel.end_x = pxToGrid(x);
+    tileset_sel.end_y = pxToGrid(y);
+
+    var sel = tileset_sel;
+
+    // did user click on a single tile? (vs click-and-drag to multiple tiles?)
+    // TODO: detect & maintain is_single starting on mousedown, so there isn't a red flash when deselecting
+    var is_single = sel.start_x == sel.end_x && sel.start_y == sel.end_y;
+
+    // if user clicked in the selected object, deselect it (toggle)
+    if (selected_obj) {
+      var obj = {
+        x: selected_obj.sprite_x * tile_size,
+        y: selected_obj.sprite_y * tile_size,
+        w: selected_obj.w,
+        h: selected_obj.h
+      };
+    }
+    if (is_single && selected_obj && selected_obj.type == 'sprite' && intersectsPoint(obj, {x: x, y: y})) {
+      deselect();
+    }
+    else {
+      // if it's a click on a single tile & there's a sprite there (intersects pt), select that sprite
+      if (is_single && getSprite(x, y)) {
+        select(getSprite(x, y));
+      }
+      else {
+        var sprite = {
+          type: 'sprite',
+          id: '',
+          sprite_x: sel.start_x < sel.end_x ? sel.start_x : sel.end_x,
+          sprite_y: sel.start_y < sel.end_y ? sel.start_y : sel.end_y,
+          img_ix: img_ix,
+
+          w: (Math.abs(sel.end_x - sel.start_x) + 1) * tile_size,
+          h: (Math.abs(sel.end_y - sel.start_y) + 1) * tile_size,
+
+          components: []
+        };
+
+        var coords = getSpriteCoords(sprite);
+        var sprites = imgs[img_ix].sprites;
+
+        // only save the new sprite if there isn't already one at the exact coords
+        // otherwise just select the preexisting one
+        if (!sprites[coords])
+          sprites[coords] = sprite;
+
+        select(sprites[coords]);
+      }
+    }
+    tileset_sel = null;
+    updateTilesetUI();
+  };
+  document.addEventListener('mouseup', g_tileset_mouseup_handler);
 });
+
+function getSprite(x, y) {
+  let sprites = imgs[img_ix].sprites;
+
+  let intersecting_sprites = [];
+  for (let coords in sprites) {
+    let sprite = sprites[coords];
+    let obj = {
+      x: sprite.sprite_x * tile_size,
+      y: sprite.sprite_y * tile_size,
+      w: sprite.w,
+      h: sprite.h
+    };
+    if (intersectsPoint(obj, {x: x, y: y}))
+      intersecting_sprites.push(sprite);
+  }
+
+  // select the smallest sprite
+  // (otherwise you'll never be able to select them b/c they're covered by bigger sprites)
+  let sprite;
+  for (let s of intersecting_sprites)
+    if (sprite == null || (s.w * s.h < sprite.w * sprite.h))
+      sprite = s;
+
+  return sprite;
+}
+
+function deleteSprite(sprite) {
+  var sprites = imgs[img_ix].sprites;
+  var coords = getSpriteCoords(sprite);
+  delete sprites[coords];
+}
+
+function getSpriteCoords(sprite) {
+  var first = sprite.sprite_x;
+  
+  // check if the x coord is a range ("3-5")
+  var sprite_w = sprite.w / tile_size;
+  if (sprite_w > 1)
+    first += '-' + (sprite.sprite_x + sprite_w);
+
+  var second = sprite.sprite_y;
+
+  // check if the y coord is a range ("7-8")
+  var sprite_h = sprite.h / tile_size;
+  if (sprite_h > 1)
+    second += '-' + (sprite.sprite_y + sprite_h);
+
+  return first + ',' + second;
+}
+
+
 
 function clonePropsFromSprite(obj, sprite) {
   for (var prop in sprite)
@@ -1180,18 +1375,6 @@ function clonePropsFromSprite(obj, sprite) {
       obj[prop] = sprite[prop];
   
   obj.components = obj.components.slice();
-}
-
-function getSprite(sprite_x, sprite_y) {
-  var sprite_coords = `${sprite_x},${sprite_y}`;
-  var sprites = imgs[img_ix].sprites;
-  return sprites[sprite_coords];
-}
-
-function setSprite(sprite) {
-  var sprite_coords = `${sprite.sprite_x},${sprite.sprite_y}`;
-  var sprites = imgs[img_ix].sprites;
-  sprites[sprite_coords] = sprite;
 }
 
 function viewSpritesheet(ix) {
@@ -1300,9 +1483,13 @@ document.addEventListener('keydown', function(evt) {
     player.vel_y = -5;
   else if (evt.keyCode == DOWN && player.accel_x != 0)
     player.vel_y = 5;
-  else if (evt.keyCode == DEL && selected_obj && selected_obj.type != 'sprite') {
+  else if (evt.keyCode == DEL && selected_obj) {
+    if (selected_obj.type == 'sprite')
+      deleteSprite(selected_obj);
+    else
+      deleteObject(selected_obj);  
+
     deselect();
-    deleteObject(selected_obj);
   }
   else if (evt.keyCode == ESC) {
     if (img_editor) {
@@ -1555,11 +1742,9 @@ function createObject(x, y, sprite, layer_id) {
     layer_id = layer.id;
 
   var obj = {
-    // Positionable
+    // Positionable (w & h are derived from sprite)
     x: x,
     y: y,
-    w: tile_size,
-    h: tile_size,
     
     // Drawable (the others are derived from sprite)
     layer_id: layer_id,
