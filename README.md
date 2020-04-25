@@ -4,16 +4,71 @@ An immersive, rapid game builder with a built-in HTML5 game engine.
 
 It is designed around an Entity Component System, where the game is defined by properties and components set in the editor.
 
-Features:
+## Features:
 
-- [x] Easy, immersive level creation
-- [x] Basic platformer or top-down dynamics
-- [x] Viewport automatically follows player
-- [x] Gravity & gravity-changing
-- [x] Springs
-- [x] Solid and pass-through tiles
-- [x] Portals
-- [x] Spikes
-- [x] Checkpoints
-- [x] Level exit & level portals
-- [x] Infinite level size
+- Easy, immersive level creation
+- Basic platformer or top-down dynamics
+- Viewport automatically follows player
+- Gravity & gravity-changing
+- Springs
+- Solid and pass-through tiles
+- Portals
+- Auto-growing level size
+
+## Components:
+
+### Positionable (required)
+* Left (x): number (px)
+* Top (y): number (px)
+* Width: number (px)
+* Height: number (px)
+
+### Drawable (required)
+* Sprite X: number (horiz. tile index)
+* Sprite Y: number (vert. tile index)
+* Spritesheet #: number (zero-based index)
+* Layer ID: number
+
+### Speed
+* Right: number (px/frame)
+* Down: number (px/frame)
+
+### Collideable
+* Left Padding: number (px)
+* Right Padding: number (px)
+* Top Padding: number(px)
+* Bottom Padding: number (px)
+
+### Animateable
+* Number of Frames: number
+* Animate Interval: number (ms/frame)
+
+###  Rotateable
+* Rotates to Sprite IDs: comma delimited array of sprite IDs
+
+### Growable
+* Grow Interval: number (ms, default: 1000)
+* Grow Direction: string (default: left)
+* Grow Sprite ID: string
+
+### Shoots
+* Bullet Sprite ID: string
+* Shoot Interval: number (ms, default: 1000)
+
+### Bullet
+* Damage Points: number (default: 50)
+
+### Damageable
+* Health Points: number (default: 100)
+* Death Animation ID: string
+* Death Anim # Frames: number
+* Death Anim Interval: number (ms, default: 1000)
+
+### Buyer
+* Cost: number (default: 1)
+* Item Sprite ID: str (default: '')
+
+### Has Money
+* Money: number
+* Earns Amount: number
+* Earns Interval: number (ms, default: 5000)
