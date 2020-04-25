@@ -92,6 +92,9 @@ body {
 #sidebar input[type=text] {
   border: 1px solid #dddddd
 }
+#sidebar input::placeholder {
+  color: #dddddd
+}
 #sidebar #obj_id {
   width: 150px;
 }
@@ -208,7 +211,7 @@ var dir = {left: {x: -1, y: 0}, right: {x: 1, y: 0}, up: {x: 0, y: -1}, down: {x
 // if the decimal is not a clean tenths (i.e. "0.5", "0.1"), it could auto-bump to a smaller unit
 
 // indexes in the component property arrays
-const NAME = 0, ID = 1, TYPE = 2, DEFAULT = 3;
+const NAME = 0, ID = 1, TYPE = 2, DEFAULT = 3, VISIBLE = 4;
 var required_comp_ids = ['Positionable', 'Drawable'];
 var components = {
   Positionable: [
@@ -235,9 +238,9 @@ var components = {
   ],
   Animateable: [
     ['Number of Frames', 'frame_count', 'int', 1],
-    ['Current Frame', 'curr_frame', 'int', 0],
+    ['Current Frame', 'curr_frame', 'int', 0, false],
     ['Animate Interval', 'anim_interval', 'int', 1000], // TODO: "time" type w/ ms/sec/min/hr dropdown UI
-    ['Last Animated', 'anim_timestamp', 'int', 0]
+    ['Last Animated', 'anim_timestamp', 'int', 0, false]
   ],
   Rotateable: [
     ['Rotates to Sprite IDs', 'rot_to_sprite_ids', 'array:string', []] // TODO: make this a plus icon that expands to multiple rows
@@ -245,13 +248,13 @@ var components = {
   Growable: [
     ['Grow Interval', 'grow_interval', 'int', 1000], // TODO: make this a "time" type with ms/sec/min/hr dropdown UI
     ['Grow Direction', 'grow_dir', 'string', 'left'], // TODO: make this a drop-down with options
-    ['Last Grown Time', 'grow_timestamp', 'int', 0],
+    ['Last Grown Time', 'grow_timestamp', 'int', 0, false],
     ['Grow Sprite ID', 'grow_sprite_id', 'string', '']
   ],
   Shoots: [
     ['Bullet Sprite ID', 'bullet_sprite_id', 'string', ''],
     ['Shoot Interval', 'shoot_interval', 'int', 1000],
-    ['Last Shoot Time', 'shoot_timestamp', 'int', 0]
+    ['Last Shoot Time', 'shoot_timestamp', 'int', 0, false]
   ],
   Bullet: [
     ['Damage Points', 'damage_pts', 'int', 50]
@@ -271,7 +274,7 @@ var components = {
     ['Money', 'money', 'int', 0],
     ['Earns Amount', 'earns_amt', 'int', 0],
     ['Earns Interval', 'earns_interval', 'int', 5000],
-    ['Last Earned Time', 'earned_timestamp', 'int', 0]
+    ['Last Earned Time', 'earned_timestamp', 'int', 0, false]
   ]
 };
 
@@ -567,12 +570,16 @@ function updatePropertiesUI() {
         <tr><td colspan="2" class="component_name">${comp_id} <span class="remove_component link" data-component="${comp_id}" ${removeable ? '' : 'style="display: none"'}>(remove)</span></td></tr>`;
 
       for (var prop of components[comp_id]) {
+        // skip invisible properties
+        if (prop[VISIBLE] === false)
+          continue;
+
         var val = selected_obj[prop[ID]];
         
         html += `
           <tr id="components_properties">
             <td><label for="${prop[ID]}">${prop[NAME]}</label></td>
-            <td><input id="${prop[ID]}" value="${val == null ? '' : val}"></td>
+            <td><input id="${prop[ID]}" value="${val == null ? '' : val}" placeholder="${prop[DEFAULT] || ''}"></td>
           </tr>`;
       }
     }
@@ -632,6 +639,13 @@ function updateTilesetUI() {
   tileset_ctx.imageSmoothingEnabled = false;
   tileset_ctx.drawImage(imgs[img_ix], 0, 0);
 
+  if (tileset_hover) {
+    let sprite = tileset_hover;
+    tileset_ctx.strokeStyle = '#99CCFF'; // selected styling
+    tileset_ctx.lineWidth = 2;
+    tileset_ctx.strokeRect(sprite.sprite_x * tile_size, sprite.sprite_y * tile_size, sprite.w, sprite.h);
+  }
+
   var x, y, w, h;
   if (tileset_sel) {
     let sel = tileset_sel;
@@ -671,13 +685,6 @@ function updateTilesetUI() {
     tileset_ctx.strokeStyle = '#3B88FD'; // selected styling
     tileset_ctx.lineWidth = 2;
     tileset_ctx.strokeRect(x, y, w, h);
-  }
-
-  if (tileset_hover) {
-    let sprite = tileset_hover;
-    tileset_ctx.strokeStyle = '#99CCFF'; // selected styling
-    tileset_ctx.lineWidth = 2;
-    tileset_ctx.strokeRect(sprite.sprite_x * tile_size, sprite.sprite_y * tile_size, sprite.w, sprite.h);
   }
 }
 
