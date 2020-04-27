@@ -256,15 +256,19 @@ var components = {
     ['Shoot Interval', 'shoot_interval', 'int', 1000],
     ['Last Shoot Time', 'shoot_timestamp', 'int', 0, false]
   ],
-  Bullet: [
+  Ephemeral: [
+  ],
+  Damager: [
     ['Damage Points', 'damage_pts', 'int', 50]
   ],
   Damageable: [
     ['Health Points', 'health_pts', 'int', 100],
     // ['Damage Animation', 'damage_anim', 'int', null],
-    ['Death Animation', 'death_anim_id', 'string', null],
-    ['Death Anim # Frames', 'death_anim_frame_count', 'int', null],
-    ['Death Anim Interval', 'death_anim_interval', 'int', 1000]
+    ['Death Sprite ID', 'death_sprite_id', 'string', null]
+  ],
+  'Wins Game On Death': [
+  ],
+  'Loses Game On Death': [
   ],
   Buyer: [
     ['Cost', 'cost', 'int', 1],
@@ -748,8 +752,22 @@ GrowthSystem.prototype.update = function() {
     let x = obj.x + dir[obj.grow_dir].x * tile_size;
     let y = obj.y + dir[obj.grow_dir].y * tile_size;
 
-    let sprite = getSpriteByID(obj.grow_sprite_id);
-    let grown_obj = createObject(x, y, sprite, obj.layer_id);
+    // TODO: this should emit a 'grow' event
+    // but how would the presence of a damageable cause it to stop growing?
+    // maybe it has more to do with there being a growth target tile?
+    let existing_damageable;
+    if (hasComp(obj, 'Damager')) {
+      var pt = {x: x, y: y};
+      existing_damageable = objects.find(o => intersectsPoint(o, pt) && hasComp(o, 'Damageable'));
+    }
+
+    if (existing_damageable) {
+      health_system.damage(obj, existing_damageable);
+    }
+    else {
+      let sprite = getSpriteByID(obj.grow_sprite_id);
+      createObject(x, y, sprite, obj.layer_id);      
+    }
   }
 }
 
@@ -766,15 +784,15 @@ ShootSystem.prototype.update = function() {
   }
 }
 
-// uses Bullet & Damageable, subscribes to 'collide'
+// uses Damager & Damageable, subscribes to 'collide'
 function HealthSystem() {
   canvas.addEventListener('collide', function(evt) {
     var bullet, damageable;
-    if (hasComp(evt.obj, 'Bullet') && hasComp(evt.other, 'Damageable')) {
+    if (hasComp(evt.obj, 'Damager') && hasComp(evt.other, 'Damageable')) {
       bullet = evt.obj;
       damageable = evt.other;
     }
-    else if (hasComp(evt.other, 'Bullet') && hasComp(evt.obj, 'Damageable')) {
+    else if (hasComp(evt.other, 'Damager') && hasComp(evt.obj, 'Damageable')) {
       bullet = evt.other;
       damageable = evt.obj;
     }
@@ -782,31 +800,45 @@ function HealthSystem() {
       return;
     }
 
-    damageable.health_pts -= bullet.damage_pts;
-    if (damageable.health_pts <= 0)
-      this.onDeath(damageable);
-
-    // delete the bullet after a timeout so it doesn't mess up the object iteration
-    setTimeout(function() {
-      deleteObject(bullet);
-    }, 1)
+    this.damage(bullet, damageable);
   }.bind(this));
 }
 
+HealthSystem.prototype.damage = function(damager, damageable) {
+  damageable.health_pts -= damager.damage_pts;
+  if (damageable.health_pts <= 0)
+    this.onDeath(damageable);
+};
+
 HealthSystem.prototype.onDeath = function(obj) {
-  if (obj.death_anim_id) {
-    if (!hasComp(obj, 'Animateable'))
-      obj.components.push('Animateable');
-
-    let sprite = getSpriteByID(obj.death_anim_id);
-    obj.sprite_x = sprite.sprite_x;
-    obj.sprite_y = sprite.sprite_y;
-    obj.img_ix = sprite.img_ix;
-
-    obj.curr_frame = 0;
-    obj.frame_count = obj.death_anim_frame_count;
-    obj.anim_interval = obj.death_anim_interval;
+  if (hasComp(obj, 'Wins Game On Death')) {
+    setTimeout(function() {
+      alert('You Won!');
+      toggleClass($('restart'), 'fa-play-circle', 'fa-stop-circle');
+      stop();
+    });
   }
+  else if (hasComp(obj, 'Loses Game On Death')) {
+    setTimeout(function() {
+      alert('Sorry, You Lost');
+      toggleClass($('restart'), 'fa-play-circle', 'fa-stop-circle');
+      stop();
+    });
+  }
+
+  if (!obj.death_sprite_id)
+    return;
+
+  // we're switching to a death sprite, so don't animate
+  if (hasComp(obj, 'Animateable')) {
+    var ix = obj.components.indexOf('Animateable');
+    obj.components.splice(ix, 1);
+  }
+
+  let sprite = getSpriteByID(obj.death_sprite_id);
+  obj.sprite_x = sprite.sprite_x;
+  obj.sprite_y = sprite.sprite_y;
+  obj.img_ix = sprite.img_ix;
 }
 
 HealthSystem.prototype.update = function() {
@@ -857,11 +889,12 @@ MoneyManagementSystem.prototype.update = function() {
         obj.money += obj.earns_amt;
 };
 
+var health_system = new HealthSystem();
 var systems = [
   new AnimationSystem(),
   new GrowthSystem(),
   new ShootSystem(),
-  new HealthSystem(),
+  health_system,
   new MoneyManagementSystem()
 ];
 
@@ -900,7 +933,8 @@ function draw() {
     img_editor.draw();
   }
   else {
-    update();
+    if (is_playing)
+      update();
 
     // draw blocks on each layer the grid
 
@@ -943,9 +977,9 @@ function update() {
     if (obj.vel_x || obj.vel_y) {
       var obj_rect = getRect(obj);
 
-      // delete Bullets when they go outside the level bounds (performance enhancement)
+      // delete Ephemeral objects when they go outside the level bounds (performance enhancement)
       if (!getIntersection(level_rect, obj_rect)) {
-        if (hasComp(obj, 'Bullet'))
+        if (hasComp(obj, 'Ephemeral'))
           deleteObject(obj);
       }
 
@@ -960,6 +994,18 @@ function update() {
           evt.obj = obj;
           evt.other = obj2;
           canvas.dispatchEvent(evt);
+
+          // delete ephemeral objects after a timeout so they doesn't mess up
+          if (hasComp(obj, 'Ephemeral')) {
+            setTimeout(function() {
+              deleteObject(obj);
+            }, 1);
+          }
+          if (hasComp(obj2, 'Ephemeral')) {
+            setTimeout(function() {
+              deleteObject(obj2);
+            }, 1);
+          }
         }
       }
     }
@@ -968,9 +1014,8 @@ function update() {
   if (player.vel_x || player.vel_y)
     viewport.follow(player);
 
-  if (is_playing)
-    for (var system of systems)
-      system.update();
+  for (var system of systems)
+    system.update();
 }
 
 function getRect(obj) {
@@ -1452,8 +1497,7 @@ async function loadImage(img_ix, data_url, filename, sprites) {
 
       var prev_length = imgs.length;
       imgs[img_ix] = img;
-      if (imgs.length > prev_length)
-        viewSpritesheet(img_ix);
+      viewSpritesheet(img_ix);
 
       // TODO: add an opt-out checkbox in case users are adding lots of images?
       // Or, instead, allow different grid sizes on each spritesheet via num_cols/num_rows text boxes
@@ -1698,6 +1742,11 @@ function stop() {
   load();
   showDesignUI();
 }
+async function restart() {
+  await load();
+  play();
+}
+
 function showDesignUI() {
   show('sidebar', 'load', 'save', 'export', 'coords');
 }
