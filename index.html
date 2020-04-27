@@ -203,7 +203,7 @@ var levels = [{objects: [], layers: [{id: 1, order: 0, visible: true}]}];
 var level = null;
 var layer = null;
 var level_num;
-var dir = {left: {x: -1, y: 0}, right: {x: 1, y: 0}, up: {x: 0, y: -1}, down: {x: 0, y: 1}};
+var dir = {down: {x: 0, y: 1}, right: {x: 1, y: 0}, left: {x: -1, y: 0}, up: {x: 0, y: -1}};
 
 // similar to how time can be presented in "units" of ms/sec/min/hr
 // distance can be presented in "units" of pixels or tiles
@@ -731,8 +731,64 @@ AnimationSystem.prototype.update = function() {
 };
 
 // uses Rotateable
-// function AISystem() {
-// }
+function AISystem() {
+  // when a relevant object grows or moves, update the rotation of relevant rotators
+
+  // TODO: emit & respond to 'move' events when it's performant to do so
+  // canvas.addEventListener('move', onObjChange);
+
+  canvas.addEventListener('grow', function(evt) {
+    for (var rot of objects)
+      if (hasComp(rot, 'Rotateable'))
+        if (rot.rot_to_sprite_ids.includes(evt.obj.id))
+          this.updateRotation(rot);
+  }.bind(this));
+}
+
+AISystem.prototype.updateRotation = function(rot) {
+  let closest = null;
+  let dist = null;
+  for (let obj of objects) {
+    if (rot.rot_to_sprite_ids.includes(obj.id)) {
+      let is_dead = obj.health_pts <= 0;
+      if (is_dead)
+        continue;
+
+      // TODO: measure distance from closest corner? via a real distance formula?
+      let d = Math.abs(obj.x - rot.x) + Math.abs(obj.y - rot.y);
+      if (dist == null || d < dist) {
+        dist = d;
+        closest = obj;
+      }
+    }
+  }
+
+  if (!closest)
+    return;
+
+  var directions = Object.values(dir);
+  var x_diff = closest.x - rot.x;
+  var y_diff = closest.y - rot.y;
+  if (Math.abs(x_diff) > Math.abs(y_diff)) {
+    y_dir = 0;
+    x_dir = x_diff > 0 ? 1 : -1;
+  }
+  else {
+    x_dir = 0;
+    y_dir = y_diff > 0 ? 1 : -1;
+  }
+
+  var prev_dir_ix = rot.dir_ix == null ? 0 : rot.dir_ix;
+  for (var dir_ix = 0; dir_ix < directions.length; dir_ix++) {
+    let dir = directions[dir_ix];
+    if (x_dir == dir.x && y_dir == dir.y)
+      rot.dir_ix = dir_ix;
+  }
+
+  rot.sprite_y += (rot.dir_ix - prev_dir_ix) * (rot.h / tile_size);
+}
+AISystem.prototype.update = function() {
+};
 
 // uses Growable
 function GrowthSystem() {
@@ -766,7 +822,11 @@ GrowthSystem.prototype.update = function() {
     }
     else {
       let sprite = getSpriteByID(obj.grow_sprite_id);
-      createObject(x, y, sprite, obj.layer_id);      
+      let new_obj = createObject(x, y, sprite, obj.layer_id);
+
+      var evt = new Event('grow');
+      evt.obj = new_obj;
+      canvas.dispatchEvent(evt);
     }
   }
 }
@@ -895,7 +955,8 @@ var systems = [
   new GrowthSystem(),
   new ShootSystem(),
   health_system,
-  new MoneyManagementSystem()
+  new MoneyManagementSystem(),
+  new AISystem()
 ];
 
 function processInterval(obj, prefix) {
@@ -1437,7 +1498,7 @@ function getSpriteCoords(sprite) {
 
 function clonePropsFromSprite(obj, sprite) {
   for (var prop in sprite)
-    if (prop != 'type' && prop != 'id')
+    if (prop != 'type')
       obj[prop] = sprite[prop];
   
   obj.components = obj.components.slice();
