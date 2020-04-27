@@ -778,15 +778,17 @@ AISystem.prototype.updateRotation = function(rot) {
     y_dir = y_diff > 0 ? 1 : -1;
   }
 
-  var prev_dir_ix = rot.dir_ix == null ? 0 : rot.dir_ix;
   for (var dir_ix = 0; dir_ix < directions.length; dir_ix++) {
     let dir = directions[dir_ix];
     if (x_dir == dir.x && y_dir == dir.y)
-      rot.dir_ix = dir_ix;
+      this.rotateObject(rot, dir_ix);
   }
-
-  rot.sprite_y += (rot.dir_ix - prev_dir_ix) * (rot.h / tile_size);
-}
+};
+AISystem.prototype.rotateObject = function(obj, dir_ix) {
+  var prev_dir_ix = obj.dir_ix == null ? 0 : obj.dir_ix;
+  obj.dir_ix = dir_ix;
+  obj.sprite_y += (obj.dir_ix - prev_dir_ix) * (obj.h / tile_size);
+};
 AISystem.prototype.update = function() {
 };
 
@@ -838,6 +840,30 @@ ShootSystem.prototype.update = function() {
     if (hasComp(obj, 'Shoots')) {
       if (processInterval(obj, 'shoot')) {
         var sprite = getSpriteByID(obj.bullet_sprite_id);
+
+        if (hasComp(sprite, 'Rotateable') && hasComp(obj, 'Rotateable')) {
+          let directions = Object.values(dir);
+          sprite = Object.assign({}, sprite); // clone
+          ai_system.rotateObject(sprite, obj.dir_ix);
+
+          // rotate the velocity
+          if (hasComp(sprite, 'Speed')) {
+            if (sprite.vel_y) {
+              if (sprite.dir_ix == 1) {
+                sprite.vel_x = sprite.vel_y;
+                sprite.vel_y = 0;
+              }
+              else if (sprite.dir_ix == 2) {
+                sprite.vel_x = -sprite.vel_y;
+                sprite.vel_y = 0;
+              }
+              else if (sprite.dir_ix == 3) {
+                sprite.vel_y = -sprite.vel_y;
+              }
+            }
+          }
+        }
+
         createObject(obj.x, obj.y, sprite);
       }
     }
@@ -950,13 +976,14 @@ MoneyManagementSystem.prototype.update = function() {
 };
 
 var health_system = new HealthSystem();
+var ai_system = new AISystem();
 var systems = [
   new AnimationSystem(),
   new GrowthSystem(),
   new ShootSystem(),
   health_system,
   new MoneyManagementSystem(),
-  new AISystem()
+  ai_system
 ];
 
 function processInterval(obj, prefix) {
