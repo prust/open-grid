@@ -55,20 +55,26 @@ It is designed around an Entity Component System, where the game is defined by p
 * Bullet Sprite ID: string
 * Shoot Interval: number (ms, default: 1000)
 
-### Bullet
+### Ephemeral (disappears on collide or out-of-bounds)
+
+### Damager
 * Damage Points: number (default: 50)
 
 ### Damageable
 * Health Points: number (default: 100)
-* Death Animation ID: string
-* Death Anim # Frames: number
-* Death Anim Interval: number (ms, default: 1000)
+* Death Sprite ID: string
 
-### Buyer
+### Wins Game on Death
+
+### Loses Game on Death
+
+### Placeable
+
+### Purchaseable
 * Cost: number (default: 1)
-* Item Sprite ID: str (default: '')
 
-### Has Money
-* Money: number
-* Earns Amount: number
+The following variables are hard-coded & still need to be moved to components:
+
+* Money: number (starting amount, default: 30)
+* Earns Amount: number (default: 1)
 * Earns Interval: number (ms, default: 5000)

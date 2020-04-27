@@ -270,15 +270,10 @@ var components = {
   ],
   'Loses Game On Death': [
   ],
-  Buyer: [
-    ['Cost', 'cost', 'int', 1],
-    ['Item Sprite ID', 'item_sprite_id', 'str', '']
+  Placeable: [
   ],
-  'Has Money': [
-    ['Money', 'money', 'int', 0],
-    ['Earns Amount', 'earns_amt', 'int', 0],
-    ['Earns Interval', 'earns_interval', 'int', 5000],
-    ['Last Earned Time', 'earned_timestamp', 'int', 0, false]
+  Purchaseable: [
+    ['Cost', 'cost', 'int', 1]
   ]
 };
 
@@ -941,27 +936,27 @@ function MoneyManagementSystem() {
       y: Math.floor((evt.pageY + viewport.transform_y) / zoom)
     };
 
-    for (var obj of objects) {
-      if (hasComp(obj, 'Buyer') && hasComp(obj, 'Has Money')) {
-        if (obj.money >= obj.cost) {
-          obj.money -= obj.cost;
+    for (var img of imgs) {
+      for (var coords in img.sprites) {
+        var sprite = img.sprites[coords];
+        if (hasComp(sprite, 'Placeable')) {
+          if (!hasComp(sprite, 'Purchaseable') || sprite.cost <= player.money) {
+            player.money -= sprite.cost;
 
-          // render the purchased item on the highest layer
-          let layer_id;
-          var highest_order = null;
-          var highest_layer_id = null;
-          for (var layer of level.layers) {
-            if (highest_order == null || layer.order > highest_order) {
-              highest_order = layer.order;
-              highest_layer_id = layer.id;
+            // render the purchased item on the highest layer
+            let layer_id;
+            var highest_order = null;
+            var highest_layer_id = null;
+            for (let layer of level.layers) {
+              if (highest_order == null || layer.order > highest_order) {
+                highest_order = layer.order;
+                highest_layer_id = layer.id;
+              }
             }
+            layer_id = highest_layer_id;
+            
+            createObject(pxToGrid(pt.x) * tile_size, pxToGrid(pt.y) * tile_size, sprite, layer_id);
           }
-          layer_id = highest_layer_id;
-
-          // lookup sprite data
-          let sprite = getSpriteByID(obj.item_sprite_id);
-          
-          createObject(pxToGrid(pt.x) * tile_size, pxToGrid(pt.y) * tile_size, sprite);
         }
       }
     }
@@ -1104,6 +1099,20 @@ function update() {
 
   for (var system of systems)
     system.update();
+
+  // TODO: make player an object w/ components in the objects array
+  if (player.money == null) {
+    player.money = 30;
+    player.earns_amt = 1;
+    player.earns_interval = 5000;
+    player.earns_timestamp = 0;
+    setStatus('$' + player.money);
+  }
+
+  if (processInterval(player, 'earns')) {
+    player.money += player.earns_amt;
+    setStatus('$' + player.money);
+  }
 }
 
 function getRect(obj) {
@@ -1827,6 +1836,7 @@ function stop() {
   setStatus('');
 
   is_playing = false;
+  player.money = null; // TODO: zero this out by making player a real game object
   load();
   showDesignUI();
 }
